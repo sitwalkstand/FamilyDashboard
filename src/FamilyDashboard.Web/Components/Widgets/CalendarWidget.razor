@@ -1,0 +1,36 @@
+@implements IDisposable
+@inject DashboardStateService State
+
+<div class="widget calendar-widget">
+    <h2>Upcoming</h2>
+    @if (State.Events.Count == 0)
+    {
+        <div class="loading">No upcoming events</div>
+    }
+    else
+    {
+        <ul class="event-list">
+            @foreach (var ev in State.Events.Take(12))
+            {
+                <li class="event-row" style="border-left-color:@ev.Color">
+                    <span class="event-time">
+                        @(ev.IsAllDay ? "All day" : ev.Start.ToString("ddd h:mm tt"))
+                    </span>
+                    <span class="event-title">@ev.Title</span>
+                    <span class="event-calendar">@ev.CalendarName</span>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        State.CalendarChanged += OnChanged;
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.CalendarChanged -= OnChanged;
+}

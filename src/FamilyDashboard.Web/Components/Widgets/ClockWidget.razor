@@ -1,0 +1,24 @@
+@implements IDisposable
+
+<div class="widget clock-widget">
+    <div class="time">@_now.ToString("h:mm tt")</div>
+    <div class="date">@_now.ToString("dddd, MMMM d")</div>
+</div>
+
+@code {
+    private DateTime _now = DateTime.Now;
+    private Timer? _timer;
+
+    protected override void OnInitialized()
+    {
+        // A local UI timer is fine here (no server round trip needed for the clock
+        // itself) - it just ticks the render every second.
+        _timer = new Timer(_ =>
+        {
+            _now = DateTime.Now;
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

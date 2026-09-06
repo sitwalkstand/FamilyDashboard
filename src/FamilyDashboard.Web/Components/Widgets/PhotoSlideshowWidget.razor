@@ -1,0 +1,53 @@
+@implements IDisposable
+@inject DashboardStateService State
+@inject IConfiguration Configuration
+
+<div class="widget photo-widget">
+    @if (_currentPhoto is not null)
+    {
+        <img src="@_currentPhoto" alt="Family photo" />
+    }
+    else
+    {
+        <div class="loading">No photos found yet</div>
+    }
+</div>
+
+@code {
+    private string? _currentPhoto;
+    private int _index;
+    private Timer? _slideTimer;
+
+    protected override void OnInitialized()
+    {
+        State.PhotosChanged += OnPhotosChanged;
+        PickCurrent();
+
+        var intervalSeconds = Configuration.GetValue("Photos:SlideIntervalSeconds", 20);
+        _slideTimer = new Timer(_ =>
+        {
+            _index++;
+            PickCurrent();
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(intervalSeconds), TimeSpan.FromSeconds(intervalSeconds));
+    }
+
+    private void OnPhotosChanged()
+    {
+        _index = 0;
+        PickCurrent();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void PickCurrent()
+    {
+        var photos = State.PhotoPaths;
+        _currentPhoto = photos.Count == 0 ? null : photos[_index % photos.Count];
+    }
+
+    public void Dispose()
+    {
+        State.PhotosChanged -= OnPhotosChanged;
+        _slideTimer?.Dispose();
+    }
+}

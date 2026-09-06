@@ -1,0 +1,34 @@
+@implements IDisposable
+@inject DashboardStateService State
+
+<div class="widget weather-widget">
+    @if (State.Weather is { } w)
+    {
+        <div class="current-temp">@Math.Round(w.CurrentTempF)&deg;</div>
+        <div class="high-low">H: @Math.Round(w.TodayHighF)&deg; &nbsp; L: @Math.Round(w.TodayLowF)&deg;</div>
+        <div class="forecast-row">
+            @foreach (var day in w.Forecast.Take(5))
+            {
+                <div class="forecast-day">
+                    <div class="day-label">@day.Date.ToString("ddd")</div>
+                    <div class="day-temps">@Math.Round(day.HighF)&deg; / @Math.Round(day.LowF)&deg;</div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="loading">Fetching weather&hellip;</div>
+    }
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        State.WeatherChanged += OnChanged;
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.WeatherChanged -= OnChanged;
+}

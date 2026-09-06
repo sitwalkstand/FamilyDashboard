@@ -1,0 +1,22 @@
+@page "/Error"
+
+<h1>Something went wrong</h1>
+<p>An unexpected error occurred. Check the container/console logs for details.</p>
+
+@if (ShowRequestId)
+{
+    <p><strong>Request ID:</strong> @RequestId</p>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized()
+    {
+        RequestId = System.Diagnostics.Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+    }
+}

@@ -1,0 +1,21 @@
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: family-dashboard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # SQLite database (calendar feed config, settings) - back this file up.
+      - dashboard-data:/data
+      # Point this at wherever your family photos live: a synced OneDrive/Google
+      # Photos export folder, a Samba share, etc. Mount it read-only if you like.
+      - ${PHOTO_FOLDER:-./photos}:/photos:ro
+    environment:
+      - Weather__Latitude=38.9894
+      - Weather__Longitude=-77.4794
+
+volumes:
+  dashboard-data:

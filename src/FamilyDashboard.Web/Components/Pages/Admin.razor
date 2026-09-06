@@ -1,0 +1,116 @@
+@page "/admin"
+@using FamilyDashboard.Web.Data
+@using FamilyDashboard.Web.Data.Entities
+@using FamilyDashboard.Web.Services
+@using FamilyDashboard.Web.Services.Calendar
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject ICalendarService CalendarService
+@inject DashboardStateService State
+@inject IConfiguration Configuration
+
+<h1>Dashboard admin</h1>
+
+<h2>Calendar feeds</h2>
+<table class="admin-table">
+    <thead>
+        <tr><th>Name</th><th>ICS URL</th><th>Color</th><th>Enabled</th><th></th></tr>
+    </thead>
+    <tbody>
+        @foreach (var feed in _feeds)
+        {
+            <tr>
+                <td>@feed.DisplayName</td>
+                <td class="url-cell">@feed.IcsUrl</td>
+                <td><span class="swatch" style="background:@feed.Color"></span></td>
+                <td>@(feed.Enabled ? "Yes" : "No")</td>
+                <td><button @onclick="() => Delete(feed.Id)">Remove</button></td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<h3>Add a calendar</h3>
+<EditForm Model="_newFeed" OnValidSubmit="AddFeed">
+    <label>
+        Name
+        <InputText @bind-Value="_newFeed.DisplayName" placeholder="Mom's calendar" />
+    </label>
+    <label>
+        ICS URL
+        <InputText @bind-Value="_newFeed.IcsUrl" placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" />
+    </label>
+    <label>
+        Color
+        <InputText @bind-Value="_newFeed.Color" type="color" />
+    </label>
+    <button type="submit">Add calendar</button>
+</EditForm>
+
+<p class="hint">
+    Google Calendar: Settings &rarr; Settings for my calendars &rarr; Integrate calendar &rarr; "Secret address in iCal format".<br />
+    Outlook.com: Calendar settings &rarr; Shared calendars &rarr; Publish a calendar &rarr; ICS link.<br />
+    iCloud: Calendar &rarr; Share Calendar &rarr; Public Calendar &rarr; copy the webcal link (change <code>webcal://</code> to <code>https://</code>).
+</p>
+
+@code {
+    private List<CalendarFeed> _feeds = [];
+    private CalendarFeed _newFeed = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFeeds();
+    }
+
+    private async Task LoadFeeds()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _feeds = await db.CalendarFeeds.ToListAsync();
+    }
+
+    private async Task AddFeed()
+    {
+        if (string.IsNullOrWhiteSpace(_newFeed.IcsUrl))
+        {
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.CalendarFeeds.Add(new CalendarFeed
+        {
+            DisplayName = string.IsNullOrWhiteSpace(_newFeed.DisplayName) ? "Calendar" : _newFeed.DisplayName,
+            IcsUrl = _newFeed.IcsUrl,
+            Color = string.IsNullOrWhiteSpace(_newFeed.Color) ? "#3B8BD4" : _newFeed.Color,
+            Enabled = true
+        });
+        await db.SaveChangesAsync();
+
+        _newFeed = new CalendarFeed();
+        await LoadFeeds();
+        await RefreshCalendarNow();
+    }
+
+    private async Task Delete(int id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var feed = await db.CalendarFeeds.FindAsync(id);
+        if (feed is not null)
+        {
+            db.CalendarFeeds.Remove(feed);
+            await db.SaveChangesAsync();
+        }
+        await LoadFeeds();
+        await RefreshCalendarNow();
+    }
+
+    private async Task RefreshCalendarNow()
+    {
+        // Fetch and push immediately rather than waiting for CalendarRefreshWorker's
+        // next scheduled tick (up to Calendar:RefreshMinutes away), so the dashboard
+        // reacts right away to changes made here.
+        var lookAheadDays = Configuration.GetValue("Calendar:LookAheadDays", 14);
+        var events = await CalendarService.GetUpcomingEventsAsync(
+            _feeds.Where(f => f.Enabled), lookAheadDays);
+        State.UpdateEvents(events);
+    }
+}

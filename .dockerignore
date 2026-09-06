@@ -1,0 +1,9 @@
+**/bin
+**/obj
+**/.vs
+**/.vscode
+**/*.db
+photos/
+.git
+.gitignore
+README.md
