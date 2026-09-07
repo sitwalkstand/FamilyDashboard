@@ -14,7 +14,15 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 // ---- Config-backed storage ----
-var dataDir = builder.Configuration["DataDirectory"] ?? "/data";
+var dataDir = builder.Configuration["DataDirectory"];
+if (string.IsNullOrWhiteSpace(dataDir))
+{
+    dataDir = Path.Combine(AppContext.BaseDirectory, "App_Data");
+}
+else if (!Path.IsPathRooted(dataDir))
+{
+    dataDir = Path.Combine(AppContext.BaseDirectory, dataDir);
+}
 Directory.CreateDirectory(dataDir);
 var dbPath = Path.Combine(dataDir, "dashboard.db");
 
@@ -64,7 +72,15 @@ if (!app.Environment.IsDevelopment())
 app.UseAntiforgery();
 
 // Serve the family photo folder as static files under /photos.
-var photoDir = builder.Configuration["PhotoDirectory"] ?? "/photos";
+var photoDir = builder.Configuration["PhotoDirectory"];
+if (string.IsNullOrWhiteSpace(photoDir))
+{
+    photoDir = Path.Combine(AppContext.BaseDirectory, "App_Data", "Photos");
+}
+else if (!Path.IsPathRooted(photoDir))
+{
+    photoDir = Path.Combine(AppContext.BaseDirectory, photoDir);
+}
 Directory.CreateDirectory(photoDir);
 app.UseStaticFiles(new StaticFileOptions
 {

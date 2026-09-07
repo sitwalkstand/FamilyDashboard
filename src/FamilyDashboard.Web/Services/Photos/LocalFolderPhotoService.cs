@@ -6,7 +6,16 @@ public class LocalFolderPhotoService(IConfiguration configuration, ILogger<Local
 
     public Task<List<string>> ScanAsync(CancellationToken cancellationToken = default)
     {
-        var photoDir = configuration["PhotoDirectory"] ?? "/photos";
+        var photoDir = configuration["PhotoDirectory"];
+        if (string.IsNullOrWhiteSpace(photoDir))
+        {
+            photoDir = Path.Combine(AppContext.BaseDirectory, "App_Data", "Photos");
+        }
+        else if (!Path.IsPathRooted(photoDir))
+        {
+            photoDir = Path.Combine(AppContext.BaseDirectory, photoDir);
+        }
+
         var results = new List<string>();
 
         if (!Directory.Exists(photoDir))
