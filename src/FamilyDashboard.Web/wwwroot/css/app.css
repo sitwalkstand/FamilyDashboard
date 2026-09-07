@@ -3,9 +3,9 @@
 html, body {
     margin: 0;
     height: 100%;
-    background: #12141a;
-    color: #f2f2f0;
-    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #10151a;
+    color: #fff;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
     overflow: hidden;
 }
 
@@ -14,60 +14,273 @@ html, body {
     width: 100vw;
 }
 
-.dashboard-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    grid-template-areas:
-        "clock weather"
-        "calendar photo";
+.dashboard-stage {
+    position: relative;
     height: 100%;
-    gap: 1px;
-    background: #000;
+    width: 100%;
+    overflow: hidden;
+    background: #182028;
 }
 
-.clock-cell { grid-area: clock; }
-.weather-cell { grid-area: weather; }
-.calendar-cell { grid-area: calendar; }
-.photo-cell { grid-area: photo; padding: 0; }
-
-.widget {
-    background: #12141a;
+.screen-calendar,
+.screen-details {
     height: 100%;
-    padding: 24px;
     overflow: hidden;
 }
 
+.screen-calendar {
+    padding: clamp(1rem, 3vw, 2.25rem);
+    background: #f4f1e9;
+    color: #26333a;
+}
+
+.screen-header {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    align-items: center;
+    gap: 2rem;
+    height: 22%;
+}
+
+.screen-header .clock-widget .time {
+    font-size: clamp(3rem, 7vw, 6rem);
+    color: #26333a;
+    text-shadow: none;
+}
+
+.screen-header .clock-widget .date {
+    color: #59666b;
+}
+
+.screen-header .weather-widget {
+    color: #26333a;
+    text-shadow: none;
+}
+
+.screen-header .weather-widget .forecast-row {
+    max-width: none;
+}
+
+.screen-calendar > .calendar-widget {
+    height: 78%;
+    padding: 1rem;
+    background: transparent;
+    backdrop-filter: none;
+    text-shadow: none;
+}
+
+.screen-calendar .calendar-widget h2 {
+    border-bottom: 2px solid #c8c1b2;
+    padding-bottom: .65rem;
+    color: #26333a;
+}
+
+.screen-calendar .event-list {
+    columns: 2;
+    column-gap: 1rem;
+}
+
+.screen-calendar .event-row {
+    break-inside: avoid;
+    background: #fffdf8;
+    border-left-color: #6d9a9a !important;
+    color: #26333a;
+}
+
+.screen-calendar .event-time,
+.screen-calendar .event-calendar {
+    color: #667478;
+}
+
+.screen-details {
+    padding: clamp(1rem, 4vw, 3rem);
+    background: #e9efe9;
+    color: #26333a;
+}
+
+.details-topline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.details-topline .clock-widget .time {
+    font-size: clamp(3.5rem, 8vw, 7rem);
+    color: #26333a;
+    text-shadow: none;
+}
+
+.details-topline .clock-widget .date {
+    color: #61706e;
+}
+
+.details-label {
+    padding-top: .8rem;
+    color: #78918c;
+    font-size: clamp(.8rem, 1.5vw, 1.15rem);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.screen-details > .weather-widget {
+    align-items: center;
+    padding: 1.5rem 0;
+    border-top: 1px solid #c2d0c7;
+    border-bottom: 1px solid #c2d0c7;
+    color: #26333a;
+    text-shadow: none;
+}
+
+.details-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(220px, .75fr);
+    gap: clamp(1rem, 4vw, 4rem);
+    height: 52%;
+    padding-top: 1.5rem;
+}
+
+.details-grid .calendar-widget {
+    padding: 0;
+    background: transparent;
+    backdrop-filter: none;
+    text-shadow: none;
+}
+
+.details-grid .event-row {
+    background: rgba(255, 255, 255, .55);
+    border-left-color: #78918c !important;
+}
+
+.details-note {
+    align-self: center;
+    padding: 1.5rem;
+    border-left: 4px solid #d5a85e;
+    background: rgba(255, 255, 255, .38);
+}
+
+.details-note-title {
+    font-size: clamp(1.3rem, 3vw, 2.2rem);
+}
+
+.details-note-copy {
+    max-width: 24rem;
+    margin-top: .75rem;
+    color: #61706e;
+    font-size: clamp(.9rem, 1.5vw, 1.15rem);
+    line-height: 1.5;
+}
+
+.dashboard-stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(0, 0, 0, .38), transparent 32%, rgba(0, 0, 0, .2) 62%, rgba(0, 0, 0, .6));
+}
+
+.dashboard-photo,
+.dashboard-clock,
+.dashboard-calendar,
+.dashboard-weather {
+    position: absolute;
+    z-index: 1;
+}
+
+.dashboard-photo {
+    inset: 0;
+    z-index: 0;
+}
+
+.dashboard-clock {
+    top: clamp(1rem, 3vw, 2.5rem);
+    left: clamp(1rem, 3vw, 3rem);
+}
+
+.dashboard-calendar {
+    top: clamp(1rem, 3vw, 2.5rem);
+    right: clamp(1rem, 3vw, 2.5rem);
+    width: min(31vw, 360px);
+    max-height: 58vh;
+}
+
+.dashboard-weather {
+    right: clamp(1rem, 3vw, 2.5rem);
+    bottom: clamp(1rem, 3vw, 2rem);
+    left: clamp(1rem, 3vw, 2.5rem);
+}
+
+.widget {
+    padding: 0;
+    overflow: hidden;
+}
+
+.clock-widget {
+    text-shadow: 0 2px 8px rgba(0, 0, 0, .55);
+}
+
 .clock-widget .time {
-    font-size: 5rem;
-    font-weight: 600;
+    font-size: clamp(3.75rem, 8vw, 7rem);
+    font-weight: 300;
+    line-height: .9;
+    letter-spacing: 0;
 }
 
 .clock-widget .date {
-    font-size: 1.5rem;
-    color: #9c9a92;
+    margin-top: .7rem;
+    font-size: clamp(1rem, 2vw, 1.65rem);
+    font-weight: 400;
 }
 
 .weather-widget .current-temp {
-    font-size: 4rem;
-    font-weight: 600;
+    font-size: clamp(3.5rem, 7vw, 6rem);
+    font-weight: 300;
+    line-height: 1;
+}
+
+.weather-widget {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, .6);
+}
+
+.weather-widget > div:first-child {
+    flex: 0 0 auto;
+}
+
+.weather-widget .high-low {
+    margin-top: .35rem;
+    font-size: clamp(.85rem, 1.6vw, 1.2rem);
 }
 
 .weather-widget .forecast-row {
     display: flex;
-    gap: 16px;
-    margin-top: 16px;
+    justify-content: space-between;
+    flex: 1;
+    max-width: 760px;
+    gap: clamp(.5rem, 2vw, 2rem);
+    margin: 0 0 .25rem;
 }
 
 .forecast-day {
     text-align: center;
-    font-size: 0.9rem;
-    color: #c2c0b6;
+    font-size: clamp(.75rem, 1.5vw, 1.1rem);
+    white-space: nowrap;
+}
+
+.calendar-widget {
+    max-height: 100%;
+    padding: 1rem 1.1rem;
+    background: rgba(28, 36, 42, .58);
+    backdrop-filter: blur(5px);
+    text-shadow: 0 1px 4px rgba(0, 0, 0, .65);
 }
 
 .calendar-widget h2 {
-    margin-top: 0;
-    font-weight: 500;
+    margin: 0 0 .75rem;
+    font-size: clamp(1.15rem, 2vw, 1.6rem);
+    font-weight: 600;
 }
 
 .event-list {
@@ -79,18 +292,18 @@ html, body {
 .event-row {
     display: flex;
     flex-direction: column;
-    border-left: 4px solid #3B8BD4;
-    padding: 8px 12px;
-    margin-bottom: 8px;
-    background: rgba(255, 255, 255, 0.04);
+    border-left: 3px solid #e7bb64;
+    padding: .45rem .65rem;
+    margin-bottom: .45rem;
+    background: rgba(255, 255, 255, .11);
 }
 
-.event-time { font-size: 0.85rem; color: #9c9a92; }
-.event-title { font-size: 1.1rem; }
-.event-calendar { font-size: 0.75rem; color: #73726c; }
+.event-time { font-size: .75rem; color: #e3e6e4; }
+.event-title { font-size: .95rem; }
+.event-calendar { font-size: .7rem; color: #c6cdcb; }
 
 .photo-widget {
-    padding: 0;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -101,6 +314,63 @@ html, body {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    animation: photo-fade 1.2s ease both;
+}
+
+@keyframes photo-fade {
+    from { opacity: .35; transform: scale(1.015); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 680px) {
+    .screen-header {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .screen-header .weather-widget {
+        display: none;
+    }
+
+    .screen-calendar > .calendar-widget {
+        height: 78%;
+        padding: 0;
+    }
+
+    .screen-calendar .event-list {
+        columns: 1;
+    }
+
+    .details-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .details-note {
+        display: none;
+    }
+
+    .dashboard-calendar {
+        top: auto;
+        bottom: 9rem;
+        width: calc(100% - 2rem);
+        max-height: 30vh;
+    }
+
+    .dashboard-weather {
+        gap: .5rem;
+    }
+
+    .weather-widget {
+        align-items: flex-end;
+    }
+
+    .weather-widget .forecast-row {
+        gap: .35rem;
+    }
+
+    .forecast-day:nth-child(n + 4) {
+        display: none;
+    }
 }
 
 .loading {
