@@ -4,25 +4,36 @@
 @using FamilyDashboard.Web.Services.Calendar
 
 <div class="widget calendar-widget">
-    <h2>Upcoming</h2>
-    @if (!FilteredEvents.Any())
+    <div class="calendar-header">
+        <h2>@CurrentMonth.ToString("MMMM yyyy")</h2>
+    </div>
+    @if (!Days.Any())
     {
         <div class="loading">No upcoming events</div>
     }
     else
     {
-        <ul class="event-list">
-            @foreach (var ev in FilteredEvents.Take(12))
+        <div class="calendar-weekdays" aria-hidden="true">
+            @foreach (var dayName in DayNames)
             {
-                <li class="event-row" style="border-left-color:@ev.Color">
-                    <span class="event-time">
-                        @(ev.IsAllDay ? "All day" : ev.Start.ToString("ddd h:mm tt"))
-                    </span>
-                    <span class="event-title">@ev.Title</span>
-                    <span class="event-calendar">@ev.CalendarName</span>
-                </li>
+                <span>@dayName</span>
             }
-        </ul>
+        </div>
+        <div class="calendar-grid">
+            @foreach (var day in Days)
+            {
+                <div class="calendar-day @(day.IsCurrentMonth ? "" : "calendar-day-muted")">
+                    <span class="calendar-day-number">@day.Date.Day</span>
+                    @foreach (var ev in day.Events)
+                    {
+                        <div class="calendar-event" style="--event-color:@ev.Color" title="@ev.Title">
+                            <span class="calendar-event-time">@(ev.IsAllDay ? "" : ev.Start.ToString("h:mm tt"))</span>
+                            <span class="calendar-event-title">@ev.Title</span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
     }
 </div>
 
@@ -37,6 +48,34 @@
     [Parameter]
     public string CalendarNames { get; set; } = "";
 
+    private static readonly string[] DayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+    private DateTime CurrentMonth => new(DateTime.Today.Year, DateTime.Today.Month, 1);
+
+    private IEnumerable<CalendarDay> Days
+    {
+        get
+        {
+            var firstDay = CurrentMonth;
+            var gridStart = firstDay.AddDays(-(int)firstDay.DayOfWeek);
+            var dayCount = (int)Math.Ceiling(((int)firstDay.DayOfWeek + DateTime.DaysInMonth(firstDay.Year, firstDay.Month)) / 7d) * 7;
+
+            var eventsByDate = FilteredEvents
+                .GroupBy(calendarEvent => calendarEvent.Start.LocalDateTime.Date)
+                .ToDictionary(group => group.Key, group => group.OrderBy(calendarEvent => calendarEvent.Start).ToList());
+
+            return Enumerable.Range(0, dayCount)
+                .Select(offset =>
+                {
+                    var date = gridStart.AddDays(offset);
+                    return new CalendarDay(
+                        date,
+                        date.Month == CurrentMonth.Month,
+                        eventsByDate.TryGetValue(date, out var events) ? events : []);
+                });
+        }
+    }
+
     private IEnumerable<CalendarEventDto> FilteredEvents
     {
         get
@@ -50,4 +89,6 @@
     }
 
     public void Dispose() => State.CalendarChanged -= OnChanged;
+
+    private sealed record CalendarDay(DateTime Date, bool IsCurrentMonth, IReadOnlyList<CalendarEventDto> Events);
 }

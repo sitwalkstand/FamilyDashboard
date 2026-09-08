@@ -300,36 +300,90 @@ html, body {
 
 .calendar-widget {
     max-height: 100%;
-    padding: 1rem 1.1rem;
-    background: rgba(28, 36, 42, .58);
+    display: flex;
+    flex-direction: column;
+    padding: .35rem .45rem .45rem;
+    background: #050505;
     backdrop-filter: blur(5px);
-    text-shadow: 0 1px 4px rgba(0, 0, 0, .65);
+    text-shadow: none;
 }
 
 .calendar-widget h2 {
-    margin: 0 0 .75rem;
-    font-size: clamp(1.15rem, 2vw, 1.6rem);
+    margin: 0;
+    font-size: clamp(.9rem, 1.5vw, 1.15rem);
     font-weight: 600;
 }
 
-.event-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
+.calendar-header {
+    min-height: 1.35rem;
+    padding: 0 .2rem .25rem;
+    border-bottom: 1px solid #262626;
 }
 
-.event-row {
-    display: flex;
-    flex-direction: column;
-    border-left: 3px solid #e7bb64;
-    padding: .45rem .65rem;
-    margin-bottom: .45rem;
-    background: rgba(255, 255, 255, .11);
+.calendar-weekdays,
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
-.event-time { font-size: .75rem; color: #e3e6e4; }
-.event-title { font-size: .95rem; }
-.event-calendar { font-size: .7rem; color: #c6cdcb; }
+.calendar-weekdays {
+    border-bottom: 1px solid #3b3b3b;
+    color: #f4f4f4;
+    font-size: clamp(.62rem, 1vw, .78rem);
+    font-weight: 600;
+    text-align: center;
+}
+
+.calendar-weekdays span {
+    padding: .18rem 0;
+}
+
+.calendar-grid {
+    min-height: 0;
+    flex: 1;
+    grid-template-rows: repeat(5, minmax(0, 1fr));
+}
+
+.calendar-day {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    padding: .18rem .2rem;
+    border-right: 1px solid #3b3b3b;
+    border-bottom: 1px solid #3b3b3b;
+}
+
+.calendar-day:nth-child(7n) {
+    border-right: 0;
+}
+
+.calendar-day-number {
+    display: block;
+    margin-bottom: .12rem;
+    font-size: clamp(.7rem, 1.2vw, .95rem);
+    font-weight: 600;
+}
+
+.calendar-day-muted {
+    color: #777;
+}
+
+.calendar-event {
+    overflow: hidden;
+    margin: 0 -.05rem .12rem;
+    padding-left: .18rem;
+    border-left: 2px solid var(--event-color, #62b9c5);
+    color: #f0f0f0;
+    font-size: clamp(.52rem, .82vw, .72rem);
+    line-height: 1.15;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.calendar-event-time {
+    color: #66b7c2;
+    margin-right: .18rem;
+}
 
 .photo-widget {
     height: 100%;
