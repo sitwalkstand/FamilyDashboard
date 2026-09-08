@@ -86,7 +86,7 @@ using (var scope = app.Services.CreateScope())
         """);
 
     var widgetColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('Widgets')").ToList();
-    foreach (var column in new[] { "PositionX", "PositionY", "Width", "Height", "CalendarNames" })
+    foreach (var column in new[] { "PositionX", "PositionY", "Width", "Height", "CalendarNames", "PhotoPath" })
     {
         if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
         {
@@ -106,6 +106,9 @@ using (var scope = app.Services.CreateScope())
                     break;
                 case "CalendarNames":
                     db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN CalendarNames TEXT NOT NULL DEFAULT ''");
+                    break;
+                case "PhotoPath":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN PhotoPath TEXT NOT NULL DEFAULT ''");
                     break;
             }
         }

@@ -425,6 +425,18 @@ html, body {
 }
 
 /* Admin page (not meant for the kitchen display) */
+.admin-page {
+    height: 100vh;
+    overflow-y: auto;
+    padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 3rem;
+    background: #f4f1e9;
+    color: #26333a;
+}
+
+.admin-page h1 {
+    margin-top: 0;
+}
+
 .editor-toolbar {
     display: flex;
     align-items: flex-end;
@@ -890,6 +902,32 @@ html, body {
     background: #fff;
 }
 
+.photo-upload-section {
+    max-width: 1400px;
+    margin: 3rem 0;
+    padding: 1.5rem;
+    border: 1px solid #cdd5d1;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.photo-upload-form {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin-top: 1.25rem;
+}
+
+.photo-upload-form input {
+    min-width: 0;
+}
+
+.upload-message {
+    margin-bottom: 0;
+    color: #54716a;
+    font-size: .8rem;
+}
+
 .feed-section-heading {
     display: flex;
     align-items: flex-start;
@@ -1102,6 +1140,48 @@ html, body {
 
 .calendar-picker-item small {
     color: #8a9894;
+}
+
+.photo-choice {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    color: #31423f;
+    font-size: .8rem;
+}
+
+.photo-choice input,
+.photo-picker-item input {
+    width: auto;
+}
+
+.photo-picker {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .5rem;
+    max-height: 13rem;
+    overflow-y: auto;
+    padding: .5rem;
+    border: 1px solid #dce2df;
+    background: #f7faf7;
+}
+
+.photo-picker-item {
+    display: grid;
+    gap: .25rem;
+    padding: .25rem;
+    border: 2px solid transparent;
+    color: #31423f;
+}
+
+.photo-picker-item:has(input:checked) {
+    border-color: #d19c4c;
+}
+
+.photo-picker-item img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
 }
 
 .modal-link-button {

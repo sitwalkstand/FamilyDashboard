@@ -3,6 +3,8 @@
 @using FamilyDashboard.Web.Data.Entities
 @using FamilyDashboard.Web.Services
 @using FamilyDashboard.Web.Services.Calendar
+@using FamilyDashboard.Web.Services.Photos
+@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
 @inject IDbContextFactory<AppDbContext> DbFactory
@@ -10,7 +12,9 @@
 @inject DashboardStateService State
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
+@inject IPhotoService PhotoService
 
+<div class="admin-page">
 <h1>Dashboard admin</h1>
 
 <section class="admin-section">
@@ -179,6 +183,32 @@
     </div>
 </section>
 
+<section class="photo-upload-section">
+    <div class="feed-section-heading">
+        <div>
+            <h2>Family photos</h2>
+            <p class="hint">Upload JPG, PNG, or WebP images for the Photos widget.</p>
+        </div>
+        <span class="feed-count">@State.PhotoPaths.Count available</span>
+    </div>
+    <div class="photo-upload-form">
+        <InputFile OnChange="SelectPhotos" multiple accept=".jpg,.jpeg,.png,.webp" />
+        <button type="button" @onclick="UploadPhotos" disabled="@(_selectedPhotos.Count == 0 || _isUploadingPhotos)">
+            @(_isUploadingPhotos ? "Uploading..." : "Upload photos")
+        </button>
+    </div>
+    @if (_selectedPhotos.Count > 0)
+    {
+        <p class="hint">@_selectedPhotos.Count photo(s) selected.</p>
+    }
+    @if (!string.IsNullOrWhiteSpace(_photoUploadMessage))
+    {
+        <p class="upload-message">@_photoUploadMessage</p>
+    }
+</section>
+
+</div>
+
 @if (_isWidgetModalOpen && SelectedWidget is not null)
 {
     <div class="modal-backdrop" role="presentation" @onclick="CloseWidgetModal">
@@ -231,19 +261,45 @@
                                     </label>
                                 }
                             </div>
-                            <button type="button" class="modal-link-button" @onclick="() => _showModalFeedForm = !_showModalFeedForm">
-                                @( _showModalFeedForm ? "Hide add calendar" : "+ Add calendar to this widget")
-                            </button>
-                            @if (_showModalFeedForm)
-                            {
-                                <div class="modal-feed-form">
-                                    <label>Name<input @bind="_modalFeed.DisplayName" placeholder="Family calendar" /></label>
-                                    <label>ICS URL<input @bind="_modalFeed.IcsUrl" placeholder="https://.../calendar.ics" /></label>
-                                    <label>Color<input @bind="_modalFeed.Color" type="color" /></label>
-                                    <button type="button" @onclick="AddFeedFromModal">Add and select calendar</button>
-                                </div>
-                            }
                             <div class="modal-note">Leave all calendars unchecked to show every enabled feed.</div>
+                        }
+                        <button type="button" class="modal-link-button" @onclick="() => _showModalFeedForm = !_showModalFeedForm">
+                            @( _showModalFeedForm ? "Hide add calendar" : "+ Add calendar to this widget")
+                        </button>
+                        @if (_showModalFeedForm)
+                        {
+                            <div class="modal-feed-form">
+                                <label>Name<input @bind="_modalFeed.DisplayName" placeholder="Family calendar" /></label>
+                                <label>ICS URL<input @bind="_modalFeed.IcsUrl" placeholder="https://.../calendar.ics" /></label>
+                                <label>Color<input @bind="_modalFeed.Color" type="color" /></label>
+                                <button type="button" @onclick="AddFeedFromModal">Add and select calendar</button>
+                            </div>
+                        }
+                    }
+                    else if (SelectedWidget.WidgetType == "Photos")
+                    {
+                        <div class="property-section-title">Photo to display</div>
+                        @if (State.PhotoPaths.Count == 0)
+                        {
+                            <div class="modal-note">No uploaded photos are available yet. Upload photos from the Family photos section below.</div>
+                        }
+                        else
+                        {
+                            <label class="photo-choice">
+                                <input type="radio" name="photo-choice" checked="@string.IsNullOrEmpty(SelectedWidget.PhotoPath)"
+                                       @onchange="() => SelectWidgetPhoto(SelectedWidget, string.Empty)" />
+                                <span>Slideshow: rotate all photos</span>
+                            </label>
+                            <div class="photo-picker">
+                                @foreach (var photo in State.PhotoPaths)
+                                {
+                                    <label class="photo-picker-item">
+                                        <input type="radio" name="photo-choice" checked="@string.Equals(SelectedWidget.PhotoPath, photo, StringComparison.OrdinalIgnoreCase)"
+                                               @onchange="() => SelectWidgetPhoto(SelectedWidget, photo)" />
+                                        <img src="@photo" alt="Uploaded family photo" />
+                                    </label>
+                                }
+                            </div>
                         }
                     }
                 </div>
@@ -269,6 +325,9 @@
     private bool _isWidgetModalOpen;
     private bool _showModalFeedForm;
     private CalendarFeed _modalFeed = new();
+    private IReadOnlyList<IBrowserFile> _selectedPhotos = [];
+    private bool _isUploadingPhotos;
+    private string? _photoUploadMessage;
     private int _draggedWidgetId;
     private int _dropColumn = 1;
     private int _dropRow = 1;
@@ -277,6 +336,8 @@
     private int _resizeStartHeight;
     private double _resizeStartPointerX;
     private double _resizeStartPointerY;
+    private double _resizeGridStepX = 40;
+    private double _resizeGridStepY = 40;
     private ResizeHandle _resizeHandleDirection;
     private ElementReference _canvasElement;
 
@@ -303,6 +364,47 @@
         if (SelectedWidget is null)
         {
             _selectedWidgetId = 0;
+        }
+    }
+
+    private void SelectPhotos(InputFileChangeEventArgs args)
+    {
+        _selectedPhotos = args.GetMultipleFiles(50);
+        _photoUploadMessage = null;
+    }
+
+    private async Task UploadPhotos()
+    {
+        if (_selectedPhotos.Count == 0)
+        {
+            return;
+        }
+
+        _isUploadingPhotos = true;
+        _photoUploadMessage = null;
+        var uploaded = 0;
+        try
+        {
+            foreach (var photo in _selectedPhotos)
+            {
+                await using var stream = photo.OpenReadStream(10 * 1024 * 1024);
+                await PhotoService.SaveAsync(stream, photo.Name);
+                uploaded++;
+            }
+
+            State.UpdatePhotos(await PhotoService.ScanAsync());
+            _selectedPhotos = [];
+            _photoUploadMessage = $"Uploaded {uploaded} photo(s).";
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or InvalidOperationException)
+        {
+            _photoUploadMessage = uploaded == 0
+                ? exception.Message
+                : $"Uploaded {uploaded} photo(s), then stopped: {exception.Message}";
+        }
+        finally
+        {
+            _isUploadingPhotos = false;
         }
     }
 
@@ -358,6 +460,12 @@
         _resizeStartPointerX = args.ClientX;
         _resizeStartPointerY = args.ClientY;
         _resizeHandleDirection = handle;
+        var gridMetrics = await JS.InvokeAsync<double[]>("getDashboardGridMetrics", _canvasElement);
+        if (gridMetrics.Length >= 2)
+        {
+            _resizeGridStepX = gridMetrics[0];
+            _resizeGridStepY = gridMetrics[1];
+        }
         await JS.InvokeVoidAsync("captureDashboardPointer", _canvasElement, args.PointerId);
     }
 
@@ -370,9 +478,8 @@
 
         // Use the full pointer delta from the original press so the final size
         // remains stable even when the pointer leaves the resize grip.
-        const double gridCellSize = 40;
-        var widthDelta = (int)Math.Round((args.ClientX - _resizeStartPointerX) / gridCellSize);
-        var heightDelta = (int)Math.Round((args.ClientY - _resizeStartPointerY) / gridCellSize);
+        var widthDelta = (int)Math.Round((args.ClientX - _resizeStartPointerX) / _resizeGridStepX);
+        var heightDelta = (int)Math.Round((args.ClientY - _resizeStartPointerY) / _resizeGridStepY);
         var rightEdge = _resizingWidget.PositionX + _resizeStartWidth - 1;
         var bottomEdge = _resizingWidget.PositionY + _resizeStartHeight - 1;
 
@@ -448,6 +555,11 @@
         }
 
         SelectedWidget.CalendarNames = string.Join("|", names);
+    }
+
+    private static void SelectWidgetPhoto(DashboardWidget widget, string photoPath)
+    {
+        widget.PhotoPath = photoPath;
     }
 
     private static List<string> ParseCalendarNames(string? value)
