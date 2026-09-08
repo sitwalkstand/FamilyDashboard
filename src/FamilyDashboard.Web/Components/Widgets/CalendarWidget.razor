@@ -1,16 +1,18 @@
 @implements IDisposable
 @inject DashboardStateService State
+@using Microsoft.AspNetCore.Components
+@using FamilyDashboard.Web.Services.Calendar
 
 <div class="widget calendar-widget">
     <h2>Upcoming</h2>
-    @if (State.Events.Count == 0)
+    @if (!FilteredEvents.Any())
     {
         <div class="loading">No upcoming events</div>
     }
     else
     {
         <ul class="event-list">
-            @foreach (var ev in State.Events.Take(12))
+            @foreach (var ev in FilteredEvents.Take(12))
             {
                 <li class="event-row" style="border-left-color:@ev.Color">
                     <span class="event-time">
@@ -31,6 +33,21 @@
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    [Parameter]
+    public string CalendarNames { get; set; } = "";
+
+    private IEnumerable<CalendarEventDto> FilteredEvents
+    {
+        get
+        {
+            var selectedNames = CalendarNames
+                .Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return selectedNames.Length == 0
+                ? State.Events
+                : State.Events.Where(calendarEvent => selectedNames.Contains(calendarEvent.CalendarName, StringComparer.OrdinalIgnoreCase));
+        }
+    }
 
     public void Dispose() => State.CalendarChanged -= OnChanged;
 }

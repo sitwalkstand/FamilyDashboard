@@ -4,62 +4,626 @@
 @using FamilyDashboard.Web.Services
 @using FamilyDashboard.Web.Services.Calendar
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject ICalendarService CalendarService
 @inject DashboardStateService State
 @inject IConfiguration Configuration
+@inject IJSRuntime JS
 
 <h1>Dashboard admin</h1>
 
-<h2>Calendar feeds</h2>
-<table class="admin-table">
-    <thead>
-        <tr><th>Name</th><th>ICS URL</th><th>Color</th><th>Enabled</th><th></th></tr>
-    </thead>
-    <tbody>
-        @foreach (var feed in _feeds)
+<section class="admin-section">
+    <div class="editor-toolbar">
+        <div>
+            <h2>Screen editor</h2>
+            <p class="hint">Select a screen, add blocks, then adjust the selected block's position and size. The canvas updates as you edit.</p>
+        </div>
+        <div class="editor-toolbar-actions">
+            <button @onclick="AddScreen">New screen</button>
+            <button class="secondary-button" @onclick="SaveAllScreens">Save all</button>
+        </div>
+    </div>
+
+    @if (_screens.Count == 0)
+    {
+        <p class="empty-state">No screens configured. Add one to start building your dashboard.</p>
+    }
+    else
+    {
+        <nav class="screen-tabs" aria-label="Dashboard screens">
+            @foreach (var screen in _screens)
+            {
+                <button class="screen-tab @(screen.Id == _selectedScreenId ? "active" : "")" @onclick="() => SelectScreen(screen.Id)">
+                    <span>@screen.Name</span>
+                    <small>@screen.Widgets.Count blocks</small>
+                </button>
+            }
+        </nav>
+
+        @if (SelectedScreen is not null)
         {
-            <tr>
-                <td>@feed.DisplayName</td>
-                <td class="url-cell">@feed.IcsUrl</td>
-                <td><span class="swatch" style="background:@feed.Color"></span></td>
-                <td>@(feed.Enabled ? "Yes" : "No")</td>
-                <td><button @onclick="() => Delete(feed.Id)">Remove</button></td>
-            </tr>
+            <div class="wysiwyg-editor">
+                <aside class="editor-sidebar">
+                    <div class="sidebar-heading">
+                        <span>Add a block</span>
+                        <span class="block-count">@SelectedScreen.Widgets.Count</span>
+                    </div>
+                    <p class="sidebar-help">Choose a widget to place it on this screen.</p>
+                    <div class="block-palette">
+                        @foreach (var type in WidgetTypes)
+                        {
+                            <button class="palette-item" @onclick="() => AddWidget(SelectedScreen, type)">
+                                <span class="palette-icon">@WidgetIcon(type)</span>
+                                <span>@type</span>
+                                <span class="palette-plus">+</span>
+                            </button>
+                        }
+                    </div>
+                    <div class="screen-settings">
+                        <div class="sidebar-heading">Screen settings</div>
+                        <label>Name<input @bind="SelectedScreen.Name" /></label>
+                        <label>Rotation order<input type="number" min="0" @bind="SelectedScreen.DisplayOrder" /></label>
+                        <label>Display seconds<input type="number" min="5" @bind="SelectedScreen.DurationSeconds" /></label>
+                        <label class="checkbox-label"><input type="checkbox" @bind="SelectedScreen.Enabled" /> Include in rotation</label>
+                        <button @onclick="() => SaveScreen(SelectedScreen)">Save screen</button>
+                        <button class="danger-button" @onclick="() => DeleteScreen(SelectedScreen.Id)">Delete screen</button>
+                    </div>
+                </aside>
+
+                <main class="canvas-area">
+                    <div class="canvas-heading">
+                        <div><strong>@SelectedScreen.Name</strong><span>Live preview</span></div>
+                        <span class="canvas-size">12 x 12 layout</span>
+                    </div>
+                    <div class="screen-canvas" @ref="_canvasElement" @ondragover:preventDefault
+                        @onpointermove="HandleResize" @onpointerup="FinishResizing" @onpointercancel="FinishResizing">
+                        <div class="canvas-grid-lines"></div>
+                        @for (var row = 1; row <= 12; row++)
+                        {
+                            @for (var column = 1; column <= 12; column++)
+                            {
+                                var dropColumn = column;
+                                var dropRow = row;
+                                <span class="canvas-drop-cell" style="grid-column:@dropColumn;grid-row:@dropRow"
+                                      @ondragover:preventDefault
+                                      @ondragenter="() => SetDropCell(dropColumn, dropRow)"
+                                      @ondrop="() => DropWidget(dropColumn, dropRow)"></span>
+                            }
+                        }
+                        @foreach (var widget in SelectedScreen.Widgets.Where(widget => widget.Enabled).OrderBy(widget => widget.DisplayOrder))
+                        {
+                            <div class="canvas-block widget-@widget.WidgetType.ToLowerInvariant() @(widget.Id == _selectedWidgetId ? "selected" : "")"
+                                 style="@WidgetStyle(widget)"
+                                 draggable="true"
+                                 role="button"
+                                 tabindex="0"
+                                 @onclick="() => SelectWidget(widget.Id)"
+                                 @ondragstart="() => StartDragging(widget.Id)"
+                                 @ondragend="StopDragging">
+                                <span class="canvas-block-icon">@WidgetIcon(widget.WidgetType)</span>
+                                <span>@widget.WidgetType</span>
+                                <small>@widget.Width x @widget.Height</small>
+                                <span class="widget-hover-actions" @onclick:stopPropagation="true">
+                                    <button type="button" title="Edit widget" @onclick="() => OpenWidgetModal(widget.Id)">✎</button>
+                                    <button type="button" title="Delete widget" @onclick="() => DeleteWidget(widget.Id)">×</button>
+                                </span>
+                                  @foreach (var handle in ResizeHandles)
+                                  {
+                                    <span class="widget-resize-handle resize-@handle.ToString().ToLowerInvariant()" title="Resize widget"
+                                        @onpointerdown="eventArgs => StartResizing(widget, handle, eventArgs)"
+                                        @onpointerdown:preventDefault="true"
+                                        @onpointerdown:stopPropagation="true"
+                                        @onclick:stopPropagation="true"></span>
+                                  }
+                            </div>
+                        }
+                    </div>
+                </main>
+
+                <aside class="editor-tip-panel">
+                    <span class="property-empty-icon">✦</span>
+                    <strong>Live canvas</strong>
+                    <p>Click any block to open its settings. Changes are previewed immediately and saved from the dialog.</p>
+                </aside>
+            </div>
         }
-    </tbody>
-</table>
+    }
+</section>
 
-<h3>Add a calendar</h3>
-<EditForm Model="_newFeed" OnValidSubmit="AddFeed">
-    <label>
-        Name
-        <InputText @bind-Value="_newFeed.DisplayName" placeholder="Mom's calendar" />
-    </label>
-    <label>
-        ICS URL
-        <InputText @bind-Value="_newFeed.IcsUrl" placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" />
-    </label>
-    <label>
-        Color
-        <InputText @bind-Value="_newFeed.Color" type="color" />
-    </label>
-    <button type="submit">Add calendar</button>
-</EditForm>
+<section class="feed-section">
+    <div class="feed-section-heading">
+        <div>
+            <h2>Calendar feeds</h2>
+            <p class="hint">Connected feeds are available to every Calendar block on your screens.</p>
+        </div>
+        <span class="feed-count">@_feeds.Count connected</span>
+    </div>
 
-<p class="hint">
-    Google Calendar: Settings &rarr; Settings for my calendars &rarr; Integrate calendar &rarr; "Secret address in iCal format".<br />
-    Outlook.com: Calendar settings &rarr; Shared calendars &rarr; Publish a calendar &rarr; ICS link.<br />
-    iCloud: Calendar &rarr; Share Calendar &rarr; Public Calendar &rarr; copy the webcal link (change <code>webcal://</code> to <code>https://</code>).
-</p>
+    @if (_feeds.Count == 0)
+    {
+        <div class="feed-empty">No calendar feeds yet. Add an ICS feed below to populate Calendar blocks.</div>
+    }
+    else
+    {
+        <table class="admin-table">
+            <thead>
+                <tr><th>Name</th><th>ICS URL</th><th>Color</th><th>Enabled</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var feed in _feeds)
+                {
+                    <tr>
+                        <td>@feed.DisplayName</td>
+                        <td class="url-cell">@feed.IcsUrl</td>
+                        <td><span class="swatch" style="background:@feed.Color"></span></td>
+                        <td>@(feed.Enabled ? "Yes" : "No")</td>
+                        <td><button class="danger-button" @onclick="() => Delete(feed.Id)">Remove</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <div class="feed-form">
+        <h3>Add a calendar feed</h3>
+        <EditForm Model="_newFeed" OnValidSubmit="AddFeed">
+            <div class="feed-form-grid">
+                <label>Name<InputText @bind-Value="_newFeed.DisplayName" placeholder="Family calendar" /></label>
+                <label>ICS URL<InputText @bind-Value="_newFeed.IcsUrl" placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" /></label>
+                <label>Color<InputText @bind-Value="_newFeed.Color" type="color" /></label>
+                <button type="submit">Add calendar</button>
+            </div>
+        </EditForm>
+        <p class="hint">Use the private iCal/ICS address from Google Calendar, Outlook.com, or iCloud. The feed will appear in Calendar blocks after it refreshes.</p>
+    </div>
+</section>
+
+@if (_isWidgetModalOpen && SelectedWidget is not null)
+{
+    <div class="modal-backdrop" role="presentation" @onclick="CloseWidgetModal">
+        <div class="widget-modal" role="dialog" aria-modal="true" aria-labelledby="widget-modal-title" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div><span class="modal-icon">@WidgetIcon(SelectedWidget.WidgetType)</span><h2 id="widget-modal-title">Configure @SelectedWidget.WidgetType</h2></div>
+                <button class="modal-close" aria-label="Close widget settings" @onclick="CloseWidgetModal">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-preview widget-@SelectedWidget.WidgetType.ToLowerInvariant()">
+                    <span class="canvas-block-icon">@WidgetIcon(SelectedWidget.WidgetType)</span>
+                    <strong>@SelectedWidget.WidgetType</strong>
+                    <small>Live preview block</small>
+                </div>
+                <div class="modal-settings">
+                    <label>Block type<select @bind="SelectedWidget.WidgetType">@foreach (var type in WidgetTypes) { <option value="@type">@type</option> }</select></label>
+                    <div class="property-section-title">Position</div>
+                    <div class="property-grid">
+                        <label>Column<input type="number" min="1" max="12" @bind="SelectedWidget.PositionX" /></label>
+                        <label>Row<input type="number" min="1" max="12" @bind="SelectedWidget.PositionY" /></label>
+                    </div>
+                    <div class="property-section-title">Size</div>
+                    <div class="property-grid">
+                        <label>Width<input type="number" min="1" max="12" @bind="SelectedWidget.Width" /></label>
+                        <label>Height<input type="number" min="1" max="12" @bind="SelectedWidget.Height" /></label>
+                    </div>
+                    <label>Layer order<input type="number" min="0" @bind="SelectedWidget.DisplayOrder" /></label>
+                    <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.Enabled" /> Visible on screen</label>
+                    @if (SelectedWidget.WidgetType == "Calendar")
+                    {
+                        <div class="property-section-title">Calendars to show</div>
+                        @if (_feeds.Count == 0)
+                        {
+                            <div class="modal-note">No calendar feeds are connected yet. Add an ICS feed below.</div>
+                        }
+                        else
+                        {
+                            <div class="calendar-picker">
+                                @foreach (var feed in _feeds)
+                                {
+                                    <label class="calendar-picker-item">
+                                        <input type="checkbox" checked="@IsCalendarSelected(feed.DisplayName)"
+                                               @onchange="args => ToggleCalendar(feed.DisplayName, args.Value is true)" />
+                                        <span class="swatch" style="background:@feed.Color"></span>
+                                        <span>@feed.DisplayName</span>
+                                        @if (!feed.Enabled)
+                                        {
+                                            <small>disabled</small>
+                                        }
+                                    </label>
+                                }
+                            </div>
+                            <button type="button" class="modal-link-button" @onclick="() => _showModalFeedForm = !_showModalFeedForm">
+                                @( _showModalFeedForm ? "Hide add calendar" : "+ Add calendar to this widget")
+                            </button>
+                            @if (_showModalFeedForm)
+                            {
+                                <div class="modal-feed-form">
+                                    <label>Name<input @bind="_modalFeed.DisplayName" placeholder="Family calendar" /></label>
+                                    <label>ICS URL<input @bind="_modalFeed.IcsUrl" placeholder="https://.../calendar.ics" /></label>
+                                    <label>Color<input @bind="_modalFeed.Color" type="color" /></label>
+                                    <button type="button" @onclick="AddFeedFromModal">Add and select calendar</button>
+                                </div>
+                            }
+                            <div class="modal-note">Leave all calendars unchecked to show every enabled feed.</div>
+                        }
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="danger-button" @onclick="() => DeleteWidgetFromModal(SelectedWidget.Id)">Remove block</button>
+                <span></span>
+                <button class="secondary-button" @onclick="CloseWidgetModal">Cancel</button>
+                <button @onclick="() => SaveWidgetFromModal(SelectedWidget)">Save changes</button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private List<CalendarFeed> _feeds = [];
+    private List<DashboardScreen> _screens = [];
     private CalendarFeed _newFeed = new();
+    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos"];
+    private static readonly ResizeHandle[] ResizeHandles = Enum.GetValues<ResizeHandle>();
+    private int _selectedScreenId;
+    private int _selectedWidgetId;
+    private bool _isWidgetModalOpen;
+    private bool _showModalFeedForm;
+    private CalendarFeed _modalFeed = new();
+    private int _draggedWidgetId;
+    private int _dropColumn = 1;
+    private int _dropRow = 1;
+    private DashboardWidget? _resizingWidget;
+    private int _resizeStartWidth;
+    private int _resizeStartHeight;
+    private double _resizeStartPointerX;
+    private double _resizeStartPointerY;
+    private ResizeHandle _resizeHandleDirection;
+    private ElementReference _canvasElement;
+
+    private DashboardScreen? SelectedScreen => _screens.FirstOrDefault(screen => screen.Id == _selectedScreenId);
+    private DashboardWidget? SelectedWidget => SelectedScreen?.Widgets.FirstOrDefault(widget => widget.Id == _selectedWidgetId);
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadScreens();
         await LoadFeeds();
+    }
+
+    private async Task LoadScreens()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _screens = await db.Screens
+            .Include(screen => screen.Widgets)
+            .OrderBy(screen => screen.DisplayOrder)
+            .ToListAsync();
+        if (_selectedScreenId == 0 || !_screens.Any(screen => screen.Id == _selectedScreenId))
+        {
+            _selectedScreenId = _screens.FirstOrDefault()?.Id ?? 0;
+        }
+        if (SelectedWidget is null)
+        {
+            _selectedWidgetId = 0;
+        }
+    }
+
+    private void SelectScreen(int id)
+    {
+        _selectedScreenId = id;
+        _selectedWidgetId = 0;
+    }
+
+    private void SelectWidget(int id)
+    {
+        _selectedWidgetId = id;
+    }
+
+    private void OpenWidgetModal(int id)
+    {
+        _selectedWidgetId = id;
+        _isWidgetModalOpen = true;
+    }
+
+    private void StartDragging(int id) => _draggedWidgetId = id;
+
+    private void StopDragging() => _draggedWidgetId = 0;
+
+    private void SetDropCell(int column, int row)
+    {
+        _dropColumn = column;
+        _dropRow = row;
+    }
+
+    private async Task DropWidget(int column, int row)
+    {
+        var widget = SelectedScreen?.Widgets.FirstOrDefault(item => item.Id == _draggedWidgetId);
+        if (widget is null)
+        {
+            return;
+        }
+
+        var width = Math.Clamp(widget.Width, 1, 12);
+        var height = Math.Clamp(widget.Height, 1, 12);
+        widget.PositionX = Math.Clamp(column, 1, 13 - width);
+        widget.PositionY = Math.Clamp(row, 1, 13 - height);
+        await SaveWidget(widget);
+        _draggedWidgetId = 0;
+    }
+
+    private async Task StartResizing(DashboardWidget widget, ResizeHandle handle, PointerEventArgs args)
+    {
+        _resizingWidget = widget;
+        _selectedWidgetId = widget.Id;
+        _resizeStartWidth = widget.Width;
+        _resizeStartHeight = widget.Height;
+        _resizeStartPointerX = args.ClientX;
+        _resizeStartPointerY = args.ClientY;
+        _resizeHandleDirection = handle;
+        await JS.InvokeVoidAsync("captureDashboardPointer", _canvasElement, args.PointerId);
+    }
+
+    private void HandleResize(PointerEventArgs args)
+    {
+        if (_resizingWidget is null)
+        {
+            return;
+        }
+
+        // Use the full pointer delta from the original press so the final size
+        // remains stable even when the pointer leaves the resize grip.
+        const double gridCellSize = 40;
+        var widthDelta = (int)Math.Round((args.ClientX - _resizeStartPointerX) / gridCellSize);
+        var heightDelta = (int)Math.Round((args.ClientY - _resizeStartPointerY) / gridCellSize);
+        var rightEdge = _resizingWidget.PositionX + _resizeStartWidth - 1;
+        var bottomEdge = _resizingWidget.PositionY + _resizeStartHeight - 1;
+
+        if (_resizeHandleDirection is ResizeHandle.Left or ResizeHandle.TopLeft or ResizeHandle.BottomLeft)
+        {
+            var newPositionX = Math.Clamp(_resizingWidget.PositionX + widthDelta, 1, rightEdge);
+            _resizingWidget.PositionX = newPositionX;
+            _resizingWidget.Width = rightEdge - newPositionX + 1;
+        }
+        else if (_resizeHandleDirection is ResizeHandle.Right or ResizeHandle.TopRight or ResizeHandle.BottomRight)
+        {
+            _resizingWidget.Width = Math.Clamp(_resizeStartWidth + widthDelta, 1, 13 - _resizingWidget.PositionX);
+        }
+
+        if (_resizeHandleDirection is ResizeHandle.Top or ResizeHandle.TopLeft or ResizeHandle.TopRight)
+        {
+            var newPositionY = Math.Clamp(_resizingWidget.PositionY + heightDelta, 1, bottomEdge);
+            _resizingWidget.PositionY = newPositionY;
+            _resizingWidget.Height = bottomEdge - newPositionY + 1;
+        }
+        else if (_resizeHandleDirection is ResizeHandle.Bottom or ResizeHandle.BottomLeft or ResizeHandle.BottomRight)
+        {
+            _resizingWidget.Height = Math.Clamp(_resizeStartHeight + heightDelta, 1, 13 - _resizingWidget.PositionY);
+        }
+    }
+
+    private async Task FinishResizing()
+    {
+        if (_resizingWidget is null)
+        {
+            return;
+        }
+
+        var widget = _resizingWidget;
+        _resizingWidget = null;
+        await SaveWidget(widget);
+    }
+
+    private enum ResizeHandle
+    {
+        TopLeft,
+        Top,
+        TopRight,
+        Left,
+        Right,
+        BottomLeft,
+        Bottom,
+        BottomRight
+    }
+
+    private void CloseWidgetModal() => _isWidgetModalOpen = false;
+
+    private bool IsCalendarSelected(string calendarName)
+    {
+        return ParseCalendarNames(SelectedWidget?.CalendarNames).Contains(calendarName, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void ToggleCalendar(string calendarName, bool selected)
+    {
+        if (SelectedWidget is null)
+        {
+            return;
+        }
+
+        var names = ParseCalendarNames(SelectedWidget.CalendarNames);
+        if (selected && !names.Contains(calendarName, StringComparer.OrdinalIgnoreCase))
+        {
+            names.Add(calendarName);
+        }
+        else if (!selected)
+        {
+            names.RemoveAll(name => string.Equals(name, calendarName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        SelectedWidget.CalendarNames = string.Join("|", names);
+    }
+
+    private static List<string> ParseCalendarNames(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? []
+            : value.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+    }
+
+    private async Task SaveWidgetFromModal(DashboardWidget widget)
+    {
+        await SaveWidget(widget);
+        _isWidgetModalOpen = false;
+    }
+
+    private async Task AddFeedFromModal()
+    {
+        if (SelectedWidget is null || string.IsNullOrWhiteSpace(_modalFeed.IcsUrl))
+        {
+            return;
+        }
+
+        var displayName = string.IsNullOrWhiteSpace(_modalFeed.DisplayName) ? "Calendar" : _modalFeed.DisplayName.Trim();
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var feed = new CalendarFeed
+        {
+            DisplayName = displayName,
+            IcsUrl = _modalFeed.IcsUrl.Trim(),
+            Color = string.IsNullOrWhiteSpace(_modalFeed.Color) ? "#3B8BD4" : _modalFeed.Color,
+            Enabled = true
+        };
+        db.CalendarFeeds.Add(feed);
+        await db.SaveChangesAsync();
+
+        await LoadFeeds();
+        ToggleCalendar(feed.DisplayName, true);
+        _modalFeed = new CalendarFeed();
+        _showModalFeedForm = false;
+        await RefreshCalendarNow();
+    }
+
+    private async Task DeleteWidgetFromModal(int id)
+    {
+        await DeleteWidget(id);
+        _isWidgetModalOpen = false;
+    }
+
+    private async Task SaveAllScreens()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        foreach (var screen in _screens)
+        {
+            screen.Name = string.IsNullOrWhiteSpace(screen.Name) ? "Screen" : screen.Name.Trim();
+            screen.DurationSeconds = Math.Max(5, screen.DurationSeconds);
+            db.Screens.Update(screen);
+            foreach (var widget in screen.Widgets)
+            {
+                widget.PositionX = Math.Clamp(widget.PositionX, 1, 12);
+                widget.PositionY = Math.Clamp(widget.PositionY, 1, 12);
+                widget.Width = Math.Clamp(widget.Width, 1, 13 - widget.PositionX);
+                widget.Height = Math.Clamp(widget.Height, 1, 13 - widget.PositionY);
+                db.Widgets.Update(widget);
+            }
+        }
+        await db.SaveChangesAsync();
+        await LoadScreens();
+    }
+
+    private string WidgetIcon(string type) => type switch
+    {
+        "Clock" => "◷",
+        "Weather" => "☼",
+        "Calendar" => "▦",
+        "Photos" => "▧",
+        _ => "□"
+    };
+
+    private static string WidgetStyle(DashboardWidget widget)
+    {
+        var x = Math.Clamp(widget.PositionX, 1, 12);
+        var y = Math.Clamp(widget.PositionY, 1, 12);
+        var width = Math.Clamp(widget.Width, 1, 13 - x);
+        var height = Math.Clamp(widget.Height, 1, 13 - y);
+        return $"grid-column: {x} / span {width}; grid-row: {y} / span {height};";
+    }
+
+    private async Task AddScreen()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var order = await db.Screens.Select(screen => (int?)screen.DisplayOrder).MaxAsync() ?? -1;
+        var screen = new DashboardScreen
+        {
+            Name = $"Screen {order + 2}",
+            DisplayOrder = order + 1,
+            Widgets = []
+        };
+        db.Screens.Add(screen);
+        await db.SaveChangesAsync();
+        await LoadScreens();
+    }
+
+    private async Task SaveScreen(DashboardScreen screen)
+    {
+        screen.Name = string.IsNullOrWhiteSpace(screen.Name) ? "Screen" : screen.Name.Trim();
+        screen.DurationSeconds = Math.Max(5, screen.DurationSeconds);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.Screens.Update(screen);
+        await db.SaveChangesAsync();
+        await LoadScreens();
+    }
+
+    private async Task DeleteScreen(int id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var screen = await db.Screens.FindAsync(id);
+        if (screen is not null)
+        {
+            db.Screens.Remove(screen);
+            await db.SaveChangesAsync();
+        }
+        await LoadScreens();
+    }
+
+    private async Task AddWidget(DashboardScreen screen, string widgetType)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var order = screen.Widgets.Select(widget => (int?)widget.DisplayOrder).Max() ?? -1;
+        var placement = ((order + 1) % 3) switch
+        {
+            0 => (1, 1, 5, 4),
+            1 => (7, 1, 6, 4),
+            _ => (1, 8, 12, 4)
+        };
+        db.Widgets.Add(new DashboardWidget
+        {
+            DashboardScreenId = screen.Id,
+            WidgetType = widgetType,
+            DisplayOrder = order + 1,
+            PositionX = placement.Item1,
+            PositionY = placement.Item2,
+            Width = placement.Item3,
+            Height = placement.Item4
+        });
+        await db.SaveChangesAsync();
+        var addedWidgetId = await db.Widgets
+            .Where(widget => widget.DashboardScreenId == screen.Id && widget.WidgetType == widgetType)
+            .OrderByDescending(widget => widget.Id)
+            .Select(widget => (int?)widget.Id)
+            .FirstOrDefaultAsync();
+        await LoadScreens();
+        _selectedWidgetId = addedWidgetId ?? 0;
+        _isWidgetModalOpen = _selectedWidgetId != 0;
+    }
+
+    private async Task SaveWidget(DashboardWidget widget)
+    {
+        widget.PositionX = Math.Clamp(widget.PositionX, 1, 12);
+        widget.PositionY = Math.Clamp(widget.PositionY, 1, 12);
+        widget.Width = Math.Clamp(widget.Width, 1, 13 - widget.PositionX);
+        widget.Height = Math.Clamp(widget.Height, 1, 13 - widget.PositionY);
+        await using var db = await DbFactory.CreateDbContextAsync();
+        db.Widgets.Update(widget);
+        await db.SaveChangesAsync();
+        await LoadScreens();
+    }
+
+    private async Task DeleteWidget(int id)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var widget = await db.Widgets.FindAsync(id);
+        if (widget is not null)
+        {
+            db.Widgets.Remove(widget);
+            await db.SaveChangesAsync();
+        }
+        await LoadScreens();
     }
 
     private async Task LoadFeeds()

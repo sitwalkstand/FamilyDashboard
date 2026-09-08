@@ -1,5 +1,6 @@
 using FamilyDashboard.Web.Components;
 using FamilyDashboard.Web.Data;
+using FamilyDashboard.Web.Data.Entities;
 using FamilyDashboard.Web.Services;
 using FamilyDashboard.Web.Services.Calendar;
 using FamilyDashboard.Web.Services.Photos;
@@ -62,6 +63,121 @@ using (var scope = app.Services.CreateScope())
     var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
     using var db = dbFactory.CreateDbContext();
     db.Database.EnsureCreated();
+    db.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS Screens (
+            Id INTEGER NOT NULL CONSTRAINT PK_Screens PRIMARY KEY AUTOINCREMENT,
+            Name TEXT NOT NULL,
+            DisplayOrder INTEGER NOT NULL,
+            DurationSeconds INTEGER NOT NULL,
+            Enabled INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS Widgets (
+            Id INTEGER NOT NULL CONSTRAINT PK_Widgets PRIMARY KEY AUTOINCREMENT,
+            DashboardScreenId INTEGER NOT NULL,
+            WidgetType TEXT NOT NULL,
+            DisplayOrder INTEGER NOT NULL,
+            Enabled INTEGER NOT NULL,
+            PositionX INTEGER NOT NULL DEFAULT 1,
+            PositionY INTEGER NOT NULL DEFAULT 1,
+            Width INTEGER NOT NULL DEFAULT 6,
+            Height INTEGER NOT NULL DEFAULT 4,
+            CONSTRAINT FK_Widgets_Screens_DashboardScreenId FOREIGN KEY (DashboardScreenId) REFERENCES Screens (Id) ON DELETE CASCADE
+        );
+        """);
+
+    var widgetColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('Widgets')").ToList();
+    foreach (var column in new[] { "PositionX", "PositionY", "Width", "Height", "CalendarNames" })
+    {
+        if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
+        {
+            switch (column)
+            {
+                case "PositionX":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN PositionX INTEGER NOT NULL DEFAULT 1");
+                    break;
+                case "PositionY":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN PositionY INTEGER NOT NULL DEFAULT 1");
+                    break;
+                case "Width":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN Width INTEGER NOT NULL DEFAULT 6");
+                    break;
+                case "Height":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN Height INTEGER NOT NULL DEFAULT 4");
+                    break;
+                case "CalendarNames":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN CalendarNames TEXT NOT NULL DEFAULT ''");
+                    break;
+            }
+        }
+    }
+
+    var existingScreens = db.Screens.Include(screen => screen.Widgets).ToList();
+    foreach (var screen in existingScreens)
+    {
+        var needsLegacyLayout = screen.Widgets.Count > 0 &&
+            (screen.Widgets.All(widget => widget.PositionX == 1 && widget.PositionY == 1 && widget.Width == 6 && widget.Height == 4) ||
+             (screen.DisplayOrder < 2 && screen.Widgets.Any(widget => widget.WidgetType == "Clock" && widget.PositionX == 9)));
+        if (!needsLegacyLayout)
+        {
+            continue;
+        }
+
+        foreach (var widget in screen.Widgets)
+        {
+            (widget.PositionX, widget.PositionY, widget.Width, widget.Height) = (screen.DisplayOrder % 3, widget.WidgetType) switch
+            {
+                (0, "Clock") => (1, 1, 5, 4),
+                (0, "Weather") => (1, 9, 12, 3),
+                (0, "Calendar") => (8, 1, 5, 8),
+                (1, "Clock") => (1, 1, 5, 4),
+                (1, "Weather") => (1, 9, 12, 3),
+                (1, "Calendar") => (1, 5, 7, 4),
+                (2, "Photos") => (1, 1, 7, 12),
+                (2, "Clock") => (9, 1, 4, 4),
+                (2, "Weather") => (9, 9, 4, 3),
+                (2, "Calendar") => (9, 5, 4, 4),
+                _ => (1, 1, 6, 4)
+            };
+        }
+    }
+    db.SaveChanges();
+
+        if (!db.Screens.Any())
+        {
+            db.Screens.AddRange(
+                new DashboardScreen
+                {
+                    Name = "Calendar overview",
+                    DisplayOrder = 0,
+                    Widgets = [
+                        new DashboardWidget { WidgetType = "Clock", DisplayOrder = 0, PositionX = 1, PositionY = 1, Width = 5, Height = 4 },
+                        new DashboardWidget { WidgetType = "Weather", DisplayOrder = 1, PositionX = 1, PositionY = 9, Width = 12, Height = 3 },
+                        new DashboardWidget { WidgetType = "Calendar", DisplayOrder = 2, PositionX = 8, PositionY = 1, Width = 5, Height = 8 }
+                    ]
+                },
+                new DashboardScreen
+                {
+                    Name = "Daily details",
+                    DisplayOrder = 1,
+                    Widgets = [
+                        new DashboardWidget { WidgetType = "Clock", DisplayOrder = 0, PositionX = 1, PositionY = 1, Width = 5, Height = 4 },
+                        new DashboardWidget { WidgetType = "Weather", DisplayOrder = 1, PositionX = 1, PositionY = 9, Width = 12, Height = 3 },
+                        new DashboardWidget { WidgetType = "Calendar", DisplayOrder = 2, PositionX = 1, PositionY = 5, Width = 7, Height = 4 }
+                    ]
+                },
+                new DashboardScreen
+                {
+                    Name = "Family photos",
+                    DisplayOrder = 2,
+                    Widgets = [
+                        new DashboardWidget { WidgetType = "Photos", DisplayOrder = 0, PositionX = 1, PositionY = 1, Width = 7, Height = 12 },
+                        new DashboardWidget { WidgetType = "Clock", DisplayOrder = 1, PositionX = 9, PositionY = 1, Width = 4, Height = 4 },
+                        new DashboardWidget { WidgetType = "Weather", DisplayOrder = 2, PositionX = 9, PositionY = 9, Width = 4, Height = 3 },
+                        new DashboardWidget { WidgetType = "Calendar", DisplayOrder = 3, PositionX = 9, PositionY = 5, Width = 4, Height = 4 }
+                    ]
+                });
+            db.SaveChanges();
+        }
 }
 
 if (!app.Environment.IsDevelopment())
