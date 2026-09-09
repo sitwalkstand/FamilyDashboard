@@ -14,6 +14,10 @@ public class CalendarFeed
     /// <summary>The ICS subscription URL for this calendar.</summary>
     public string IcsUrl { get; set; } = string.Empty;
 
+    public string SourceType { get; set; } = "Ics";
+
+    public string ExternalId { get; set; } = string.Empty;
+
     /// <summary>Hex color used to tag events from this calendar on the dashboard.</summary>
     public string Color { get; set; } = "#3B8BD4";
 

@@ -9,6 +9,7 @@
 @using Microsoft.JSInterop
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject ICalendarService CalendarService
+@inject IGoogleCalendarService GoogleCalendarService
 @inject DashboardStateService State
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
@@ -159,7 +160,7 @@
                 {
                     <tr>
                         <td>@feed.DisplayName</td>
-                        <td class="url-cell">@feed.IcsUrl</td>
+                        <td class="url-cell">@(feed.SourceType == "Google" ? "Google Calendar" : feed.IcsUrl)</td>
                         <td><span class="swatch" style="background:@feed.Color"></span></td>
                         <td>@(feed.Enabled ? "Yes" : "No")</td>
                         <td><button class="danger-button" @onclick="() => Delete(feed.Id)">Remove</button></td>
@@ -181,6 +182,53 @@
         </EditForm>
         <p class="hint">Use the private iCal/ICS address from Google Calendar, Outlook.com, or iCloud. The feed will appear in Calendar blocks after it refreshes.</p>
     </div>
+</section>
+
+<section class="feed-section google-calendar-section">
+    <div class="feed-section-heading">
+        <div>
+            <h2>Google Calendar</h2>
+            <p class="hint">Connect Google once, then choose the calendars this dashboard can display.</p>
+        </div>
+        @if (_googleConnectedEmail is not null)
+        {
+            <span class="feed-count">Connected</span>
+        }
+    </div>
+    @if (!GoogleCalendarService.IsConfigured)
+    {
+        <div class="feed-empty">Google Calendar is not configured. Create <strong>App_Data/google-oauth.json</strong> with your Google client credentials, then restart.</div>
+    }
+    else if (_googleConnectedEmail is null)
+    {
+        <div class="feed-form-grid">
+            <span class="hint">Authorize this dashboard with a Google account to list its calendars.</span>
+            <a class="button-link" href="/auth/google/start">Connect Google Calendar</a>
+        </div>
+    }
+    else
+    {
+        <p class="hint">Connected account: @_googleConnectedEmail</p>
+        @if (_googleCalendars.Count == 0)
+        {
+            <p class="modal-note">No calendars were returned by Google.</p>
+        }
+        else
+        {
+            <div class="calendar-picker google-calendar-picker">
+                @foreach (var calendar in _googleCalendars)
+                {
+                    <label class="calendar-picker-item">
+                        <input type="checkbox" checked="@IsGoogleCalendarSelected(calendar.Id)"
+                               @onchange="args => ToggleGoogleCalendar(calendar, args.Value is true)" />
+                        <span class="swatch" style="background:@(calendar.BackgroundColor ?? "#3B8BD4")"></span>
+                        <span>@calendar.Summary</span>
+                    </label>
+                }
+            </div>
+            <p class="hint">Selected calendars are available to every Calendar block and can be filtered per block below.</p>
+        }
+    }
 </section>
 
 <section class="photo-upload-section">
@@ -325,6 +373,8 @@
     private bool _isWidgetModalOpen;
     private bool _showModalFeedForm;
     private CalendarFeed _modalFeed = new();
+    private List<GoogleCalendarInfo> _googleCalendars = [];
+    private string? _googleConnectedEmail;
     private IReadOnlyList<IBrowserFile> _selectedPhotos = [];
     private bool _isUploadingPhotos;
     private string? _photoUploadMessage;
@@ -348,6 +398,7 @@
     {
         await LoadScreens();
         await LoadFeeds();
+        await LoadGoogleCalendars();
     }
 
     private async Task LoadScreens()
@@ -742,6 +793,54 @@
     {
         await using var db = await DbFactory.CreateDbContextAsync();
         _feeds = await db.CalendarFeeds.ToListAsync();
+    }
+
+    private async Task LoadGoogleCalendars()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _googleConnectedEmail = await db.GoogleCalendarConnections
+            .Select(connection => connection.Email)
+            .SingleOrDefaultAsync();
+        if (_googleConnectedEmail is not null && GoogleCalendarService.IsConfigured)
+        {
+            try
+            {
+                _googleCalendars = (await GoogleCalendarService.GetCalendarsAsync()).ToList();
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or HttpRequestException)
+            {
+                _photoUploadMessage = $"Google Calendar could not be loaded: {exception.Message}";
+            }
+        }
+    }
+
+    private bool IsGoogleCalendarSelected(string calendarId) =>
+        _feeds.Any(feed => feed.SourceType == "Google" && feed.ExternalId == calendarId && feed.Enabled);
+
+    private async Task ToggleGoogleCalendar(GoogleCalendarInfo calendar, bool selected)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var feed = await db.CalendarFeeds.SingleOrDefaultAsync(item =>
+            item.SourceType == "Google" && item.ExternalId == calendar.Id);
+        if (selected && feed is null)
+        {
+            db.CalendarFeeds.Add(new CalendarFeed
+            {
+                DisplayName = calendar.Summary,
+                SourceType = "Google",
+                ExternalId = calendar.Id,
+                Color = calendar.BackgroundColor ?? "#3B8BD4",
+                Enabled = true
+            });
+        }
+        else if (!selected && feed is not null)
+        {
+            db.CalendarFeeds.Remove(feed);
+        }
+
+        await db.SaveChangesAsync();
+        await LoadFeeds();
+        await RefreshCalendarNow();
     }
 
     private async Task AddFeed()

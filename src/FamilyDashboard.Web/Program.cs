@@ -7,6 +7,7 @@ using FamilyDashboard.Web.Services.Photos;
 using FamilyDashboard.Web.Services.Weather;
 using FamilyDashboard.Web.Workers;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
 using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,6 +28,12 @@ else if (!Path.IsPathRooted(dataDir))
 }
 Directory.CreateDirectory(dataDir);
 var dbPath = Path.Combine(dataDir, "dashboard.db");
+builder.Configuration.AddJsonFile(
+    Path.Combine(dataDir, "google-oauth.json"),
+    optional: true,
+    reloadOnChange: false);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(dataDir, "Keys")));
 
 builder.Services.AddDbContextFactory<AppDbContext>(options =>
     options.UseSqlite($"Data Source={dbPath}"));
@@ -49,6 +56,7 @@ builder.Services.AddHttpClient<ICalendarService, CalendarService>(client =>
     client.DefaultRequestVersion = HttpVersion.Version11;
     client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
 });
+builder.Services.AddScoped<IGoogleCalendarService, GoogleCalendarService>();
 builder.Services.AddHttpClient<IWeatherService, OpenMeteoWeatherService>();
 builder.Services.AddSingleton<IPhotoService, LocalFolderPhotoService>();
 
@@ -85,6 +93,25 @@ using (var scope = app.Services.CreateScope())
             Width INTEGER NOT NULL DEFAULT 6,
             Height INTEGER NOT NULL DEFAULT 4,
             CONSTRAINT FK_Widgets_Screens_DashboardScreenId FOREIGN KEY (DashboardScreenId) REFERENCES Screens (Id) ON DELETE CASCADE
+        );
+        """);
+
+    var feedColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('CalendarFeeds')").ToList();
+    foreach (var column in new[] { "SourceType", "ExternalId" })
+    {
+        if (!feedColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
+        {
+            var defaultValue = column == "SourceType" ? "Ics" : "";
+            db.Database.ExecuteSqlRaw($"ALTER TABLE CalendarFeeds ADD COLUMN {column} TEXT NOT NULL DEFAULT '{defaultValue}'");
+        }
+    }
+
+    db.Database.ExecuteSqlRaw("""
+        CREATE TABLE IF NOT EXISTS GoogleCalendarConnections (
+            Id INTEGER NOT NULL CONSTRAINT PK_GoogleCalendarConnections PRIMARY KEY AUTOINCREMENT,
+            Email TEXT NOT NULL,
+            ProtectedRefreshToken TEXT NOT NULL,
+            ConnectedAtUtc TEXT NOT NULL
         );
         """);
 
@@ -185,6 +212,37 @@ using (var scope = app.Services.CreateScope())
             db.SaveChanges();
         }
 }
+
+app.MapGet("/auth/google/start", (HttpContext context, IGoogleCalendarService googleCalendar) =>
+{
+    var redirectUri = $"{context.Request.Scheme}://{context.Request.Host}/auth/google/callback";
+    return Results.Redirect(googleCalendar.CreateAuthorizationUrl(redirectUri));
+});
+
+app.MapGet("/auth/google/callback", async (
+    HttpContext context,
+    IGoogleCalendarService googleCalendar,
+    string? code,
+    string? state,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
+    {
+        return Results.Redirect("/admin?googleError=Authorization+was+cancelled");
+    }
+
+    try
+    {
+        googleCalendar.ValidateState(state);
+        var redirectUri = $"{context.Request.Scheme}://{context.Request.Host}/auth/google/callback";
+        await googleCalendar.CompleteAuthorizationAsync(code, redirectUri, cancellationToken);
+        return Results.Redirect("/admin?google=connected");
+    }
+    catch (Exception exception) when (exception is InvalidOperationException or Google.GoogleApiException)
+    {
+        return Results.Redirect($"/admin?googleError={Uri.EscapeDataString(exception.Message)}");
+    }
+});
 
 if (!app.Environment.IsDevelopment())
 {

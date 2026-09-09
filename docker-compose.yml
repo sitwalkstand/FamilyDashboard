@@ -16,6 +16,8 @@ services:
     environment:
       - Weather__Latitude=38.9894
       - Weather__Longitude=-77.4794
+      # Register http://<server-host>:8080/auth/google/callback in Google Cloud.
+      # Put credentials in /data/google-oauth.json; the volume persists it.
 
 volumes:
   dashboard-data:

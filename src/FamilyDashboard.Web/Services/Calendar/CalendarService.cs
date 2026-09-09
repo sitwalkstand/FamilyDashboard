@@ -4,7 +4,10 @@ using Ical.Net.CalendarComponents;
 
 namespace FamilyDashboard.Web.Services.Calendar;
 
-public class CalendarService(HttpClient httpClient, ILogger<CalendarService> logger) : ICalendarService
+public class CalendarService(
+    HttpClient httpClient,
+    IGoogleCalendarService googleCalendarService,
+    ILogger<CalendarService> logger) : ICalendarService
 {
     private const int MaxFetchAttempts = 3;
     private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromSeconds(30);
@@ -22,29 +25,33 @@ public class CalendarService(HttpClient httpClient, ILogger<CalendarService> log
         {
             try
             {
-                var ics = await FetchFeedAsync(feed.IcsUrl, feed.DisplayName, cancellationToken);
-                var calendar = global::Ical.Net.Calendar.Load(ics);
-
-                // Expands recurring events (RRULE) into concrete occurrences in range.
-                var occurrences = calendar.GetOccurrences(rangeStart, rangeEnd);
-
-                foreach (var occurrence in occurrences)
+                if (string.Equals(feed.SourceType, "Google", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (occurrence.Source is not CalendarEvent calEvent)
+                    results.AddRange(await googleCalendarService.GetEventsAsync(feed, rangeStart, rangeEnd, cancellationToken));
+                }
+                else
+                {
+                    var ics = await FetchFeedAsync(feed.IcsUrl, feed.DisplayName, cancellationToken);
+                    var calendar = global::Ical.Net.Calendar.Load(ics);
+                    var occurrences = calendar.GetOccurrences(rangeStart, rangeEnd);
+
+                    foreach (var occurrence in occurrences)
                     {
-                        continue;
+                        if (occurrence.Source is not CalendarEvent calEvent)
+                        {
+                            continue;
+                        }
+
+                        var start = occurrence.Period.StartTime.AsDateTimeOffset;
+                        var end = occurrence.Period.EndTime?.AsDateTimeOffset ?? start;
+                        results.Add(new CalendarEventDto(
+                            Title: calEvent.Summary ?? "(untitled event)",
+                            Start: start,
+                            End: end,
+                            IsAllDay: calEvent.IsAllDay,
+                            CalendarName: feed.DisplayName,
+                            Color: feed.Color));
                     }
-
-                    var start = occurrence.Period.StartTime.AsDateTimeOffset;
-                    var end = occurrence.Period.EndTime?.AsDateTimeOffset ?? start;
-
-                    results.Add(new CalendarEventDto(
-                        Title: calEvent.Summary ?? "(untitled event)",
-                        Start: start,
-                        End: end,
-                        IsAllDay: calEvent.IsAllDay,
-                        CalendarName: feed.DisplayName,
-                        Color: feed.Color));
                 }
             }
             catch (HttpRequestException ex)

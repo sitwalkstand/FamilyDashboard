@@ -57,6 +57,40 @@ Calendars refresh on the interval set in `appsettings.json`
 the next scheduled refresh — not instantly — since the worker only re-reads
 the feed list from SQLite once per cycle.
 
+### Connecting Google Calendar
+
+Create a Google Cloud OAuth client for a web application, enable the Google
+Calendar API, and add this authorized redirect URI:
+
+`http://localhost:5000/auth/google/callback`
+
+In **Google Cloud Console → Google Auth Platform → Audience**, set the app
+audience to **External** when connecting a personal Gmail account. If the app
+is left as **Internal**, Google returns `403 org_internal` and only accounts in
+the owning Google Workspace organization can authorize it. For an External
+app still in testing, add the Google account under **Test users**. An Internal
+app is appropriate only when every account belongs to the same Workspace
+organization.
+
+Create `App_Data/google-oauth.json` beside the local SQLite database:
+
+```json
+{
+  "Google": {
+    "ClientId": "your-client-id",
+    "ClientSecret": "your-client-secret"
+  }
+}
+```
+
+For Docker, place the same file at `/data/google-oauth.json` inside the
+persistent `dashboard-data` volume before starting the container. The file is
+ignored by Git and is loaded separately from `appsettings.json`.
+
+Open `/admin`, choose **Connect Google Calendar**, authorize the account, and
+select the calendars to make available to Calendar widgets. OAuth encryption
+keys are stored beside the SQLite database, so back up the `App_Data` folder.
+
 ## Project layout
 
 ```
