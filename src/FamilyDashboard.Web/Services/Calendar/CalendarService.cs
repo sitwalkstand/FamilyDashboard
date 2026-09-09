@@ -6,6 +6,9 @@ namespace FamilyDashboard.Web.Services.Calendar;
 
 public class CalendarService(HttpClient httpClient, ILogger<CalendarService> logger) : ICalendarService
 {
+    private const int MaxFetchAttempts = 3;
+    private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromSeconds(30);
+
     public async Task<List<CalendarEventDto>> GetUpcomingEventsAsync(
         IEnumerable<CalendarFeed> feeds,
         int lookAheadDays,
@@ -19,7 +22,7 @@ public class CalendarService(HttpClient httpClient, ILogger<CalendarService> log
         {
             try
             {
-                var ics = await httpClient.GetStringAsync(feed.IcsUrl, cancellationToken);
+                var ics = await FetchFeedAsync(feed.IcsUrl, feed.DisplayName, cancellationToken);
                 var calendar = global::Ical.Net.Calendar.Load(ics);
 
                 // Expands recurring events (RRULE) into concrete occurrences in range.
@@ -44,6 +47,11 @@ public class CalendarService(HttpClient httpClient, ILogger<CalendarService> log
                         Color: feed.Color));
                 }
             }
+            catch (HttpRequestException ex)
+            {
+                // Keep provider throttling from producing a full exception trace for every refresh.
+                logger.LogWarning("Could not fetch calendar feed {FeedName}: {Message}", feed.DisplayName, ex.Message);
+            }
             catch (Exception ex)
             {
                 // Don't let one broken/unreachable feed take the whole widget down -
@@ -53,5 +61,40 @@ public class CalendarService(HttpClient httpClient, ILogger<CalendarService> log
         }
 
         return results.OrderBy(e => e.Start).ToList();
+    }
+
+    private async Task<string> FetchFeedAsync(string url, string feedName, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= MaxFetchAttempts; attempt++)
+        {
+            using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsStringAsync(cancellationToken);
+            }
+
+            var isRetryable = response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+                              (int)response.StatusCode >= 500;
+            if (!isRetryable || attempt == MaxFetchAttempts)
+            {
+                response.EnsureSuccessStatusCode();
+            }
+
+            var delay = GetRetryDelay(response, attempt);
+            logger.LogDebug("Retrying calendar feed {FeedName} after HTTP {StatusCode} in {DelaySeconds}s", feedName, (int)response.StatusCode, delay.TotalSeconds);
+            await Task.Delay(delay, cancellationToken);
+        }
+
+        throw new InvalidOperationException("Calendar feed request did not complete.");
+    }
+
+    private static TimeSpan GetRetryDelay(HttpResponseMessage response, int attempt)
+    {
+        if (response.Headers.RetryAfter?.Delta is { } retryAfter)
+        {
+            return retryAfter > MaxRetryDelay ? MaxRetryDelay : retryAfter;
+        }
+
+        return TimeSpan.FromSeconds(Math.Min(Math.Pow(2, attempt), MaxRetryDelay.TotalSeconds));
     }
 }
