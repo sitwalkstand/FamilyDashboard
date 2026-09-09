@@ -67,22 +67,37 @@ public class CalendarService(HttpClient httpClient, ILogger<CalendarService> log
     {
         for (var attempt = 1; attempt <= MaxFetchAttempts; attempt++)
         {
-            using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-            if (response.IsSuccessStatusCode)
+            HttpResponseMessage response;
+            try
             {
-                return await response.Content.ReadAsStringAsync(cancellationToken);
+                response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            }
+            catch (HttpRequestException ex) when (attempt < MaxFetchAttempts)
+            {
+                var delay = GetTransportRetryDelay(attempt);
+                logger.LogDebug(ex, "Retrying calendar feed {FeedName} after a transport error in {DelaySeconds}s", feedName, delay.TotalSeconds);
+                await Task.Delay(delay, cancellationToken);
+                continue;
             }
 
-            var isRetryable = response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
-                              (int)response.StatusCode >= 500;
-            if (!isRetryable || attempt == MaxFetchAttempts)
+            using (response)
             {
-                response.EnsureSuccessStatusCode();
-            }
+                if (response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadAsStringAsync(cancellationToken);
+                }
 
-            var delay = GetRetryDelay(response, attempt);
-            logger.LogDebug("Retrying calendar feed {FeedName} after HTTP {StatusCode} in {DelaySeconds}s", feedName, (int)response.StatusCode, delay.TotalSeconds);
-            await Task.Delay(delay, cancellationToken);
+                var isRetryable = response.StatusCode == System.Net.HttpStatusCode.TooManyRequests ||
+                                  (int)response.StatusCode >= 500;
+                if (!isRetryable || attempt == MaxFetchAttempts)
+                {
+                    response.EnsureSuccessStatusCode();
+                }
+
+                var delay = GetRetryDelay(response, attempt);
+                logger.LogDebug("Retrying calendar feed {FeedName} after HTTP {StatusCode} in {DelaySeconds}s", feedName, (int)response.StatusCode, delay.TotalSeconds);
+                await Task.Delay(delay, cancellationToken);
+            }
         }
 
         throw new InvalidOperationException("Calendar feed request did not complete.");
@@ -97,4 +112,7 @@ public class CalendarService(HttpClient httpClient, ILogger<CalendarService> log
 
         return TimeSpan.FromSeconds(Math.Min(Math.Pow(2, attempt), MaxRetryDelay.TotalSeconds));
     }
+
+    private static TimeSpan GetTransportRetryDelay(int attempt) =>
+        TimeSpan.FromSeconds(Math.Min(Math.Pow(2, attempt), MaxRetryDelay.TotalSeconds));
 }

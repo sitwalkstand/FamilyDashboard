@@ -7,6 +7,7 @@ using FamilyDashboard.Web.Services.Photos;
 using FamilyDashboard.Web.Services.Weather;
 using FamilyDashboard.Web.Workers;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,6 +46,8 @@ builder.Services.AddHttpClient<ICalendarService, CalendarService>(client =>
     // none by default. A plain, honest UA string avoids that without pretending
     // to be a browser.
     client.DefaultRequestHeaders.UserAgent.ParseAdd("FamilyDashboard/1.0 (self-hosted family calendar dashboard)");
+    client.DefaultRequestVersion = HttpVersion.Version11;
+    client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionExact;
 });
 builder.Services.AddHttpClient<IWeatherService, OpenMeteoWeatherService>();
 builder.Services.AddSingleton<IPhotoService, LocalFolderPhotoService>();
