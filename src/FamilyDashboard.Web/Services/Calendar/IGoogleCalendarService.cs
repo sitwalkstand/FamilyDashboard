@@ -8,6 +8,8 @@ public interface IGoogleCalendarService
     string CreateAuthorizationUrl(string redirectUri);
     string ValidateState(string state);
     Task CompleteAuthorizationAsync(string code, string redirectUri, CancellationToken cancellationToken = default);
+    Task<bool> IsConnectedAsync(CancellationToken cancellationToken = default);
+    Task DisconnectAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<GoogleCalendarInfo>> GetCalendarsAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CalendarEventDto>> GetEventsAsync(
         CalendarFeed feed,

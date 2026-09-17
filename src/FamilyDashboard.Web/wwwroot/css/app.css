@@ -491,6 +491,56 @@ html, body {
     margin-top: 0;
 }
 
+.admin-tabs {
+    display: flex;
+    gap: .35rem;
+    max-width: 1400px;
+    margin: 1rem 0 1.5rem;
+    border-bottom: 1px solid #cdd5d1;
+}
+
+.admin-tab {
+    padding: .75rem 1.2rem;
+    border: 1px solid transparent;
+    border-bottom: 3px solid transparent;
+    border-radius: 5px 5px 0 0;
+    background: transparent;
+    color: #5c6e6a;
+    font-weight: 700;
+}
+
+.admin-tab.active {
+    border-color: #cdd5d1;
+    border-bottom-color: #d19c4c;
+    background: #fff;
+    color: #26333a;
+}
+
+.weather-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(180px, 320px));
+    gap: 1rem;
+    max-width: 700px;
+    margin-bottom: 1.25rem;
+}
+
+.weather-settings-grid label {
+    display: grid;
+    gap: .35rem;
+    color: #596b68;
+    font-weight: 700;
+}
+
+.weather-settings-grid input,
+.weather-settings-grid select {
+    width: 100%;
+    padding: .65rem .7rem;
+    border: 1px solid #cdd5d1;
+    border-radius: 4px;
+    background: #fff;
+    color: #26333a;
+}
+
 .editor-toolbar {
     display: flex;
     align-items: flex-end;

@@ -79,6 +79,23 @@ public sealed class GoogleCalendarService(
             item.BackgroundColor)).ToList() ?? [];
     }
 
+    public async Task DisconnectAsync(CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var connection = await db.Set<GoogleCalendarConnection>().SingleOrDefaultAsync(cancellationToken);
+        if (connection is not null)
+        {
+            db.Remove(connection);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<bool> IsConnectedAsync(CancellationToken cancellationToken = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        return await db.Set<GoogleCalendarConnection>().AnyAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<CalendarEventDto>> GetEventsAsync(
         CalendarFeed feed,
         DateTime start,

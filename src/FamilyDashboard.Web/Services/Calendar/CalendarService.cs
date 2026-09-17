@@ -20,8 +20,12 @@ public class CalendarService(
         var results = new List<CalendarEventDto>();
         var rangeStart = DateTime.Today;
         var rangeEnd = rangeStart.AddDays(lookAheadDays);
+        var googleConnectionAvailable = !feeds.Any(feed =>
+            feed.Enabled && string.Equals(feed.SourceType, "Google", StringComparison.OrdinalIgnoreCase)) ||
+            await googleCalendarService.IsConnectedAsync(cancellationToken);
 
-        foreach (var feed in feeds.Where(f => f.Enabled))
+        foreach (var feed in feeds.Where(f => f.Enabled &&
+                     (!string.Equals(f.SourceType, "Google", StringComparison.OrdinalIgnoreCase) || googleConnectionAvailable)))
         {
             try
             {
@@ -53,6 +57,21 @@ public class CalendarService(
                             Color: feed.Color));
                     }
                 }
+            }
+            catch (Google.Apis.Auth.OAuth2.Responses.TokenResponseException ex)
+                when (string.Equals(ex.Error?.Error, "invalid_grant", StringComparison.OrdinalIgnoreCase) &&
+                      string.Equals(feed.SourceType, "Google", StringComparison.OrdinalIgnoreCase))
+            {
+                await googleCalendarService.DisconnectAsync(cancellationToken);
+                googleConnectionAvailable = false;
+                logger.LogWarning("Google Calendar authorization has expired or been revoked. Reconnect it from the Admin page.");
+            }
+            catch (System.Security.Cryptography.CryptographicException)
+                when (string.Equals(feed.SourceType, "Google", StringComparison.OrdinalIgnoreCase))
+            {
+                await googleCalendarService.DisconnectAsync(cancellationToken);
+                googleConnectionAvailable = false;
+                logger.LogWarning("Google Calendar credentials could not be decrypted. Reconnect it from the Admin page.");
             }
             catch (HttpRequestException ex)
             {

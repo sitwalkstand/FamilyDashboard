@@ -4,6 +4,7 @@
 @using FamilyDashboard.Web.Services
 @using FamilyDashboard.Web.Services.Calendar
 @using FamilyDashboard.Web.Services.Photos
+@using FamilyDashboard.Web.Services.Weather
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
@@ -14,10 +15,20 @@
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
 @inject IPhotoService PhotoService
+@inject IWeatherService WeatherService
 
 <div class="admin-page">
 <h1>Dashboard admin</h1>
 
+<nav class="admin-tabs" aria-label="Admin sections">
+    <button class="admin-tab @(_activeTab == AdminTab.Dashboard ? "active" : "")" @onclick="() => _activeTab = AdminTab.Dashboard">Dashboard</button>
+    <button class="admin-tab @(_activeTab == AdminTab.Calendar ? "active" : "")" @onclick="() => _activeTab = AdminTab.Calendar">Calendar</button>
+    <button class="admin-tab @(_activeTab == AdminTab.Photos ? "active" : "")" @onclick="() => _activeTab = AdminTab.Photos">Photos</button>
+    <button class="admin-tab @(_activeTab == AdminTab.Weather ? "active" : "")" @onclick="() => _activeTab = AdminTab.Weather">Weather</button>
+</nav>
+
+@if (_activeTab == AdminTab.Dashboard)
+{
 <section class="admin-section">
     <div class="editor-toolbar">
         <div>
@@ -136,6 +147,9 @@
     }
 </section>
 
+}
+@if (_activeTab == AdminTab.Calendar)
+{
 <section class="feed-section">
     <div class="feed-section-heading">
         <div>
@@ -231,6 +245,11 @@
     }
 </section>
 
+}
+
+@if (_activeTab == AdminTab.Photos)
+{
+
 <section class="photo-upload-section">
     <div class="feed-section-heading">
         <div>
@@ -254,6 +273,33 @@
         <p class="upload-message">@_photoUploadMessage</p>
     }
 </section>
+
+}
+
+@if (_activeTab == AdminTab.Weather)
+{
+<section class="feed-section settings-section">
+    <div class="feed-section-heading">
+        <div>
+            <h2>Weather settings</h2>
+            <p class="hint">Configure the location and refresh interval used by the Weather widget.</p>
+        </div>
+    </div>
+    <div class="weather-settings-grid">
+        <label>US ZIP code<input @bind="_weatherZipCode" placeholder="20850" /></label>
+        <button type="button" @onclick="LookupWeatherZip" disabled="@_isLookingUpWeather">@(_isLookingUpWeather ? "Looking up..." : "Use ZIP code")</button>
+        <label>Latitude<input type="number" step="0.0001" @bind="_weatherLatitude" /></label>
+        <label>Longitude<input type="number" step="0.0001" @bind="_weatherLongitude" /></label>
+        <label>Refresh minutes<input type="number" min="5" @bind="_weatherRefreshMinutes" /></label>
+        <label>Temperature unit<select @bind="_weatherTemperatureUnit"><option value="fahrenheit">Fahrenheit</option><option value="celsius">Celsius</option></select></label>
+    </div>
+    <button @onclick="SaveWeatherSettings">Save weather settings</button>
+    @if (!string.IsNullOrWhiteSpace(_weatherMessage))
+    {
+        <p class="upload-message">@_weatherMessage</p>
+    }
+</section>
+}
 
 </div>
 
@@ -363,6 +409,8 @@
 }
 
 @code {
+    private enum AdminTab { Dashboard, Calendar, Photos, Weather }
+    private AdminTab _activeTab = AdminTab.Dashboard;
     private List<CalendarFeed> _feeds = [];
     private List<DashboardScreen> _screens = [];
     private CalendarFeed _newFeed = new();
@@ -378,6 +426,13 @@
     private IReadOnlyList<IBrowserFile> _selectedPhotos = [];
     private bool _isUploadingPhotos;
     private string? _photoUploadMessage;
+    private double _weatherLatitude;
+    private double _weatherLongitude;
+    private int _weatherRefreshMinutes;
+    private string _weatherTemperatureUnit = "fahrenheit";
+    private string? _weatherMessage;
+    private string _weatherZipCode = string.Empty;
+    private bool _isLookingUpWeather;
     private int _draggedWidgetId;
     private int _dropColumn = 1;
     private int _dropRow = 1;
@@ -399,6 +454,7 @@
         await LoadScreens();
         await LoadFeeds();
         await LoadGoogleCalendars();
+        await LoadWeatherSettings();
     }
 
     private async Task LoadScreens()
@@ -795,6 +851,64 @@
         _feeds = await db.CalendarFeeds.ToListAsync();
     }
 
+    private async Task LoadWeatherSettings()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.Settings.SingleAsync();
+        _weatherLatitude = settings.WeatherLatitude;
+        _weatherLongitude = settings.WeatherLongitude;
+        _weatherRefreshMinutes = settings.WeatherRefreshMinutes;
+        _weatherTemperatureUnit = settings.WeatherTemperatureUnit;
+    }
+
+    private async Task SaveWeatherSettings()
+    {
+        if (_weatherLatitude is < -90 or > 90 || _weatherLongitude is < -180 or > 180)
+        {
+            _weatherMessage = "Latitude must be between -90 and 90, and longitude between -180 and 180.";
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.Settings.SingleAsync();
+        settings.WeatherLatitude = _weatherLatitude;
+        settings.WeatherLongitude = _weatherLongitude;
+        settings.WeatherRefreshMinutes = Math.Max(5, _weatherRefreshMinutes);
+        settings.WeatherTemperatureUnit = _weatherTemperatureUnit;
+        await db.SaveChangesAsync();
+        _weatherRefreshMinutes = settings.WeatherRefreshMinutes;
+        _weatherMessage = "Weather settings saved. Restart the app to apply the new refresh interval.";
+    }
+
+    private async Task LookupWeatherZip()
+    {
+        _weatherMessage = null;
+        _isLookingUpWeather = true;
+        try
+        {
+            var location = await WeatherService.FindLocationByZipAsync(_weatherZipCode);
+            if (location is null)
+            {
+                _weatherMessage = "No US location was found for that ZIP code.";
+                return;
+            }
+
+            _weatherLatitude = location.Latitude;
+            _weatherLongitude = location.Longitude;
+            var locationName = string.Join(", ", new[] { location.Name, location.Region, location.Country }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+            _weatherMessage = $"Coordinates loaded for {locationName}. Save weather settings to apply them.";
+        }
+        catch (HttpRequestException exception)
+        {
+            _weatherMessage = $"ZIP lookup failed: {exception.Message}";
+        }
+        finally
+        {
+            _isLookingUpWeather = false;
+        }
+    }
+
     private async Task LoadGoogleCalendars()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
@@ -806,6 +920,18 @@
             try
             {
                 _googleCalendars = (await GoogleCalendarService.GetCalendarsAsync()).ToList();
+            }
+            catch (Google.Apis.Auth.OAuth2.Responses.TokenResponseException exception) when (exception.Error?.Error == "invalid_grant")
+            {
+                await GoogleCalendarService.DisconnectAsync();
+                _googleConnectedEmail = null;
+                _googleCalendars = [];
+            }
+            catch (System.Security.Cryptography.CryptographicException)
+            {
+                await GoogleCalendarService.DisconnectAsync();
+                _googleConnectedEmail = null;
+                _googleCalendars = [];
             }
             catch (Exception exception) when (exception is InvalidOperationException or HttpRequestException)
             {

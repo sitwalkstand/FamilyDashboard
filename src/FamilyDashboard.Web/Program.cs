@@ -102,7 +102,7 @@ using (var scope = app.Services.CreateScope())
         if (!feedColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
         {
             var defaultValue = column == "SourceType" ? "Ics" : "";
-            db.Database.ExecuteSqlRaw($"ALTER TABLE CalendarFeeds ADD COLUMN {column} TEXT NOT NULL DEFAULT '{defaultValue}'");
+            db.Database.ExecuteSqlInterpolated($"ALTER TABLE CalendarFeeds ADD COLUMN {column} TEXT NOT NULL DEFAULT {defaultValue}");
         }
     }
 
@@ -114,6 +114,29 @@ using (var scope = app.Services.CreateScope())
             ConnectedAtUtc TEXT NOT NULL
         );
         """);
+
+    var settingsColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('Settings')").ToList();
+    foreach (var column in new[] { "WeatherLatitude", "WeatherLongitude", "WeatherTemperatureUnit", "WeatherRefreshMinutes" })
+    {
+        if (!settingsColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
+        {
+            switch (column)
+            {
+                case "WeatherLatitude":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN WeatherLatitude REAL NOT NULL DEFAULT 38.9894");
+                    break;
+                case "WeatherLongitude":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN WeatherLongitude REAL NOT NULL DEFAULT -77.4794");
+                    break;
+                case "WeatherTemperatureUnit":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN WeatherTemperatureUnit TEXT NOT NULL DEFAULT 'fahrenheit'");
+                    break;
+                case "WeatherRefreshMinutes":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN WeatherRefreshMinutes INTEGER NOT NULL DEFAULT 30");
+                    break;
+            }
+        }
+    }
 
     var widgetColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('Widgets')").ToList();
     foreach (var column in new[] { "PositionX", "PositionY", "Width", "Height", "CalendarNames", "PhotoPath" })
