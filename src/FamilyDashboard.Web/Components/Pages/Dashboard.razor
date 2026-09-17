@@ -1,16 +1,97 @@
 @page "/"
+@implements IDisposable
+@inject IConfiguration Configuration
+@using FamilyDashboard.Web.Data
+@using FamilyDashboard.Web.Data.Entities
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContext> DbFactory
 
-<div class="dashboard-grid">
-    <div class="cell clock-cell">
-        <ClockWidget />
+@if (_screens.Count == 0)
+{
+    <div class="dashboard-stage screen-empty"><div class="loading">No enabled screens configured</div></div>
+}
+else
+{
+    var screen = _screens[_screenIndex];
+    <div class="dashboard-stage screen-@_screenIndex">
+        <div class="configured-screen">
+            @foreach (var widget in screen.Widgets.Where(widget => widget.Enabled).OrderBy(widget => widget.DisplayOrder))
+            {
+                <div class="configured-widget widget-@widget.WidgetType.ToLowerInvariant()" style="@WidgetStyle(widget)">
+                    @switch (widget.WidgetType)
+                    {
+                        case "Clock":
+                            <ClockWidget />
+                            break;
+                        case "Weather":
+                            <WeatherWidget />
+                            break;
+                        case "Calendar":
+                            <CalendarWidget CalendarNames="@widget.CalendarNames" />
+                            break;
+                        case "Photos":
+                            <PhotoSlideshowWidget SelectedPhoto="@widget.PhotoPath" />
+                            break;
+                    }
+                </div>
+            }
+        </div>
     </div>
-    <div class="cell weather-cell">
-        <WeatherWidget />
-    </div>
-    <div class="cell calendar-cell">
-        <CalendarWidget />
-    </div>
-    <div class="cell photo-cell">
-        <PhotoSlideshowWidget />
-    </div>
-</div>
+}
+
+@code {
+    private List<DashboardScreen> _screens = [];
+    private int _screenIndex;
+    private int _elapsedSeconds;
+    private Timer? _screenTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadScreens();
+        _screenTimer = new Timer(_ => Tick(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    private async Task LoadScreens()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _screens = await db.Screens
+            .Where(screen => screen.Enabled)
+            .Include(screen => screen.Widgets)
+            .OrderBy(screen => screen.DisplayOrder)
+            .ToListAsync();
+        if (_screens.Count > 0)
+        {
+            _screenIndex = Math.Min(_screenIndex, _screens.Count - 1);
+        }
+    }
+
+    private void Tick()
+    {
+        if (_screens.Count == 0)
+        {
+            return;
+        }
+
+        _elapsedSeconds++;
+        if (_elapsedSeconds < Math.Max(5, _screens[_screenIndex].DurationSeconds))
+        {
+            return;
+        }
+
+        _elapsedSeconds = 0;
+        _screenIndex = (_screenIndex + 1) % _screens.Count;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private static string WidgetStyle(DashboardWidget widget)
+    {
+        var x = Math.Clamp(widget.PositionX, 1, 12);
+        var y = Math.Clamp(widget.PositionY, 1, 12);
+        var width = Math.Clamp(widget.Width, 1, 13 - x);
+        var height = Math.Clamp(widget.Height, 1, 13 - y);
+        return $"grid-column: {x} / span {width}; grid-row: {y} / span {height};";
+    }
+
+    public void Dispose() => _screenTimer?.Dispose();
+}
+

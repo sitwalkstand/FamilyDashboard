@@ -7,3 +7,4 @@ photos/
 .git
 .gitignore
 README.md
+**/App_Data/google-oauth.json

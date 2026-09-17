@@ -7,6 +7,21 @@ public class OpenMeteoWeatherService(HttpClient httpClient, ILogger<OpenMeteoWea
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    public async Task<WeatherLocation?> FindLocationByZipAsync(string zipCode, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(zipCode))
+        {
+            return null;
+        }
+
+        var url = $"https://geocoding-api.open-meteo.com/v1/search?name={Uri.EscapeDataString(zipCode.Trim())}&count=1&language=en&format=json&countryCode=US";
+        var response = await httpClient.GetFromJsonAsync<GeocodingResponse>(url, JsonOptions, cancellationToken);
+        var result = response?.Results?.FirstOrDefault();
+        return result is null
+            ? null
+            : new WeatherLocation(result.Name, result.Admin1, result.Country, result.Latitude, result.Longitude);
+    }
+
     public async Task<WeatherDto?> GetForecastAsync(double latitude, double longitude, CancellationToken cancellationToken = default)
     {
         var url = "https://api.open-meteo.com/v1/forecast" +
@@ -54,6 +69,30 @@ public class OpenMeteoWeatherService(HttpClient httpClient, ILogger<OpenMeteoWea
 
         [JsonPropertyName("daily")]
         public DailyBlock Daily { get; set; } = new();
+    }
+
+    private class GeocodingResponse
+    {
+        [JsonPropertyName("results")]
+        public List<GeocodingResult>? Results { get; set; }
+    }
+
+    private class GeocodingResult
+    {
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("admin1")]
+        public string? Admin1 { get; set; }
+
+        [JsonPropertyName("country")]
+        public string? Country { get; set; }
+
+        [JsonPropertyName("latitude")]
+        public double Latitude { get; set; }
+
+        [JsonPropertyName("longitude")]
+        public double Longitude { get; set; }
     }
 
     private class CurrentBlock

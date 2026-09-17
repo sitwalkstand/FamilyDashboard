@@ -1,5 +1,7 @@
+using FamilyDashboard.Web.Data;
 using FamilyDashboard.Web.Services;
 using FamilyDashboard.Web.Services.Weather;
+using Microsoft.EntityFrameworkCore;
 
 namespace FamilyDashboard.Web.Workers;
 
@@ -21,8 +23,14 @@ public class WeatherRefreshWorker(
             try
             {
                 using var scope = scopeFactory.CreateScope();
+                var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
                 var weatherService = scope.ServiceProvider.GetRequiredService<IWeatherService>();
 
+                await using var db = await dbFactory.CreateDbContextAsync(stoppingToken);
+                var settings = await db.Settings.SingleAsync(stoppingToken);
+                latitude = settings.WeatherLatitude;
+                longitude = settings.WeatherLongitude;
+                intervalMinutes = settings.WeatherRefreshMinutes;
                 var forecast = await weatherService.GetForecastAsync(latitude, longitude, stoppingToken);
                 if (forecast is not null)
                 {

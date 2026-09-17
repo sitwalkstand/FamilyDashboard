@@ -8,3 +8,5 @@ obj/
 *.db-wal
 photos/
 data/
+src/FamilyDashboard.Web/App_Data/google-oauth.json
+google-oauth.json

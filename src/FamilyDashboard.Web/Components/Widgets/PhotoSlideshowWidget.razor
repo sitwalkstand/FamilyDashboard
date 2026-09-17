@@ -2,6 +2,11 @@
 @inject DashboardStateService State
 @inject IConfiguration Configuration
 
+@code {
+    [Parameter]
+    public string SelectedPhoto { get; set; } = string.Empty;
+}
+
 <div class="widget photo-widget">
     @if (_currentPhoto is not null)
     {
@@ -42,6 +47,12 @@
     private void PickCurrent()
     {
         var photos = State.PhotoPaths;
+        if (!string.IsNullOrWhiteSpace(SelectedPhoto) && photos.Contains(SelectedPhoto, StringComparer.OrdinalIgnoreCase))
+        {
+            _currentPhoto = SelectedPhoto;
+            return;
+        }
+
         _currentPhoto = photos.Count == 0 ? null : photos[_index % photos.Count];
     }
 
