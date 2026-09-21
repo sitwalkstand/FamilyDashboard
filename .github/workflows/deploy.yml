@@ -1,0 +1,29 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-push:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and push image
+        run: |
+          docker build -t ghcr.io/sitwalkstand/familydashboard:latest .
+          docker push ghcr.io/sitwalkstand/familydashboard:latest
+
+      - name: Deploy to FamilyDashboard LXC
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key deploy@<familydashboard-lxc-ip> \
+            "cd ~/familydashboard && docker compose pull && docker compose up -d"
