@@ -18,9 +18,9 @@ USER dashboard
 
 COPY --from=build /app .
 
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:80
 ENV DataDirectory=/data
 ENV PhotoDirectory=/photos
 
-EXPOSE 8080
+EXPOSE 80
 ENTRYPOINT ["dotnet", "FamilyDashboard.Web.dll"]
