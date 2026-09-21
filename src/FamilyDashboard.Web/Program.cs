@@ -291,6 +291,7 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/photos"
 });
 
+app.UseStaticFiles();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
