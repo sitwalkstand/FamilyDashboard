@@ -1,8 +1,6 @@
 services:
   dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/sitwalkstand/familydashboard:latest
     container_name: family-dashboard
     restart: unless-stopped
     ports:
