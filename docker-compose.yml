@@ -6,7 +6,7 @@ services:
     container_name: family-dashboard
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "80:80"
     volumes:
       # SQLite database (calendar feed config, settings) - back this file up.
       - dashboard-data:/data
