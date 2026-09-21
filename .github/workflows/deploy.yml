@@ -35,4 +35,4 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key deploy@192.168.1.150 \
-            "cd ~/familydashboard && docker compose pull && docker compose up -d"
+            "cd ~/familydashboard && git pull origin main && docker compose pull && docker compose up -d"
