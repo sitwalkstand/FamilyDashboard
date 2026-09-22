@@ -37,5 +37,5 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key deploy@<familydashboard-lxc-ip> \
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key deploy@192.168.1.150 \
             "cd ~/familydashboard && git pull origin main && docker compose pull dashboard && docker compose build caddy && docker compose up -d"
