@@ -3,8 +3,6 @@ services:
     image: ghcr.io/sitwalkstand/familydashboard:latest
     container_name: family-dashboard
     restart: unless-stopped
-    ports:
-      - "80:80"
     volumes:
       # SQLite database (calendar feed config, settings) - back this file up.
       - dashboard-data:/data
@@ -16,6 +14,21 @@ services:
       - Weather__Longitude=-77.4794
       # Register http://<server-host>:8080/auth/google/callback in Google Cloud.
       # Put credentials in /data/google-oauth.json; the volume persists it.
-
+  caddy:
+    build:
+      context: ./caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    depends_on:
+      - dashboard
 volumes:
   dashboard-data:
+  caddy-data:
+  caddy-config:
