@@ -31,8 +31,23 @@ jobs:
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
-          mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          set -euo pipefail
+
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key deploy@192.168.1.150 \
-            "cd ~/familydashboard && git pull origin main && docker compose pull && docker compose up -d"
+
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key deploy@192.168.1.150 '
+            set -e
+            cd "$HOME/familydashboard"
+
+            test -w .git/objects || {
+              echo ".git/objects is not writable by $(id -un)"
+              ls -ld . .git .git/objects
+              exit 1
+            }
+
+            git pull --ff-only origin main
+            docker compose pull
+            docker compose up -d
+          '
