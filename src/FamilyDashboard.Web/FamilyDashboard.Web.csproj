@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <RequiresAspNetWebAssets>true</RequiresAspNetWebAssets>
     <!-- Required explicitly on some .NET 10 Blazor Server setups so embedded/static
          component assets resolve correctly under the new SDK build pipeline. -->
     <StaticWebAssetsEnabled>true</StaticWebAssetsEnabled>
