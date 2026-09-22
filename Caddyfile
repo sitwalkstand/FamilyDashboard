@@ -1,0 +1,7 @@
+familydashboard.9millers.com {
+    reverse_proxy dashboard:80
+
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+}
