@@ -8,6 +8,7 @@ using FamilyDashboard.Web.Services.Weather;
 using FamilyDashboard.Web.Workers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
