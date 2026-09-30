@@ -12,6 +12,7 @@ public class DashboardWidget
     public int Width { get; set; } = 6;
     public int Height { get; set; } = 4;
     public string CalendarNames { get; set; } = "";
+    public int CalendarWeeks { get; set; } = 5;
     public string PhotoPath { get; set; } = "";
 
     public DashboardScreen? Screen { get; set; }

@@ -131,7 +131,8 @@ public sealed class GoogleCalendarService(
                 eventEnd,
                 isAllDay,
                 feed.DisplayName,
-                feed.Color);
+                feed.Color,
+                feed.Icon);
         }).ToList() ?? [];
     }
 

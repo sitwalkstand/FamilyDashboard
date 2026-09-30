@@ -29,7 +29,7 @@ public class CalendarRefreshWorker(
                 var feeds = await db.CalendarFeeds.Where(f => f.Enabled).ToListAsync(stoppingToken);
 
                 var events = await calendarService.GetUpcomingEventsAsync(feeds, lookAheadDays, stoppingToken);
-                state.UpdateEvents(events);
+                state.UpdateEvents(events, feeds);
 
                 logger.LogInformation("Refreshed {Count} calendar events from {FeedCount} feeds", events.Count, feeds.Count);
             }

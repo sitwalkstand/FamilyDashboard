@@ -1,5 +1,6 @@
 using FamilyDashboard.Web.Services.Calendar;
 using FamilyDashboard.Web.Services.Weather;
+using FamilyDashboard.Web.Data.Entities;
 
 namespace FamilyDashboard.Web.Services;
 
@@ -14,6 +15,7 @@ public class DashboardStateService
     private readonly object _lock = new();
 
     public IReadOnlyList<CalendarEventDto> Events { get; private set; } = [];
+    public IReadOnlyList<CalendarLegendDto> Calendars { get; private set; } = [];
     public WeatherDto? Weather { get; private set; }
     public IReadOnlyList<string> PhotoPaths { get; private set; } = [];
 
@@ -21,9 +23,19 @@ public class DashboardStateService
     public event Action? WeatherChanged;
     public event Action? PhotosChanged;
 
-    public void UpdateEvents(List<CalendarEventDto> events)
+    public void UpdateEvents(List<CalendarEventDto> events, IEnumerable<CalendarFeed>? feeds = null)
     {
-        lock (_lock) { Events = events; }
+        lock (_lock)
+        {
+            Events = events;
+            if (feeds is not null)
+            {
+                Calendars = feeds
+                    .Where(feed => feed.Enabled)
+                    .Select(feed => new CalendarLegendDto(feed.DisplayName, feed.Color, feed.Icon))
+                    .ToList();
+            }
+        }
         CalendarChanged?.Invoke();
     }
 

@@ -167,7 +167,7 @@
     {
         <table class="admin-table">
             <thead>
-                <tr><th>Name</th><th>ICS URL</th><th>Color</th><th>Enabled</th><th></th></tr>
+                <tr><th>Name</th><th>ICS URL</th><th>Icon</th><th>Color</th><th>Enabled</th><th></th></tr>
             </thead>
             <tbody>
                 @foreach (var feed in _feeds)
@@ -175,7 +175,11 @@
                     <tr>
                         <td>@feed.DisplayName</td>
                         <td class="url-cell">@(feed.SourceType == "Google" ? "Google Calendar" : feed.IcsUrl)</td>
-                        <td><span class="swatch" style="background:@feed.Color"></span></td>
+                        <td>
+                            <CalendarIconPicker Icon="@feed.Icon" IconChanged="icon => UpdateCalendarAppearance(feed, icon, null)" />
+                        </td>
+                        <td><input class="calendar-color-input" type="color" aria-label="Color for @feed.DisplayName" value="@feed.Color"
+                                   @onchange="args => UpdateCalendarAppearance(feed, null, args.Value?.ToString())" /></td>
                         <td>@(feed.Enabled ? "Yes" : "No")</td>
                         <td><button class="danger-button" @onclick="() => Delete(feed.Id)">Remove</button></td>
                     </tr>
@@ -190,6 +194,7 @@
             <div class="feed-form-grid">
                 <label>Name<InputText @bind-Value="_newFeed.DisplayName" placeholder="Family calendar" /></label>
                 <label>ICS URL<InputText @bind-Value="_newFeed.IcsUrl" placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" /></label>
+                <CalendarIconPicker @bind-Icon="_newFeed.Icon" />
                 <label>Color<InputText @bind-Value="_newFeed.Color" type="color" /></label>
                 <button type="submit">Add calendar</button>
             </div>
@@ -329,6 +334,10 @@
                         <label>Width<input type="number" min="1" max="12" @bind="SelectedWidget.Width" /></label>
                         <label>Height<input type="number" min="1" max="12" @bind="SelectedWidget.Height" /></label>
                     </div>
+                    @if (SelectedWidget.WidgetType == "Calendar")
+                    {
+                        <label>Rolling month weeks<input type="number" min="1" max="6" @bind="SelectedWidget.CalendarWeeks" /></label>
+                    }
                     <label>Layer order<input type="number" min="0" @bind="SelectedWidget.DisplayOrder" /></label>
                     <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.Enabled" /> Visible on screen</label>
                     @if (SelectedWidget.WidgetType == "Calendar")
@@ -346,6 +355,7 @@
                                     <label class="calendar-picker-item">
                                         <input type="checkbox" checked="@IsCalendarSelected(feed.DisplayName)"
                                                @onchange="args => ToggleCalendar(feed.DisplayName, args.Value is true)" />
+                                        <span class="calendar-picker-icon">@feed.Icon</span>
                                         <span class="swatch" style="background:@feed.Color"></span>
                                         <span>@feed.DisplayName</span>
                                         @if (!feed.Enabled)
@@ -365,6 +375,7 @@
                             <div class="modal-feed-form">
                                 <label>Name<input @bind="_modalFeed.DisplayName" placeholder="Family calendar" /></label>
                                 <label>ICS URL<input @bind="_modalFeed.IcsUrl" placeholder="https://.../calendar.ics" /></label>
+                                <CalendarIconPicker @bind-Icon="_modalFeed.Icon" />
                                 <label>Color<input @bind="_modalFeed.Color" type="color" /></label>
                                 <button type="button" @onclick="AddFeedFromModal">Add and select calendar</button>
                             </div>
@@ -695,6 +706,7 @@
         {
             DisplayName = displayName,
             IcsUrl = _modalFeed.IcsUrl.Trim(),
+            Icon = _modalFeed.Icon,
             Color = string.IsNullOrWhiteSpace(_modalFeed.Color) ? "#3B8BD4" : _modalFeed.Color,
             Enabled = true
         };
@@ -823,6 +835,7 @@
 
     private async Task SaveWidget(DashboardWidget widget)
     {
+        widget.CalendarWeeks = Math.Clamp(widget.CalendarWeeks, 1, 6);
         widget.PositionX = Math.Clamp(widget.PositionX, 1, 12);
         widget.PositionY = Math.Clamp(widget.PositionY, 1, 12);
         widget.Width = Math.Clamp(widget.Width, 1, 13 - widget.PositionX);
@@ -981,12 +994,36 @@
         {
             DisplayName = string.IsNullOrWhiteSpace(_newFeed.DisplayName) ? "Calendar" : _newFeed.DisplayName,
             IcsUrl = _newFeed.IcsUrl,
+            Icon = _newFeed.Icon,
             Color = string.IsNullOrWhiteSpace(_newFeed.Color) ? "#3B8BD4" : _newFeed.Color,
             Enabled = true
         });
         await db.SaveChangesAsync();
 
         _newFeed = new CalendarFeed();
+        await LoadFeeds();
+        await RefreshCalendarNow();
+    }
+
+    private async Task UpdateCalendarAppearance(CalendarFeed feed, string? icon, string? color)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var savedFeed = await db.CalendarFeeds.FindAsync(feed.Id);
+        if (savedFeed is null)
+        {
+            return;
+        }
+
+        if (icon is not null)
+        {
+            savedFeed.Icon = icon;
+        }
+        if (color is not null)
+        {
+            savedFeed.Color = color;
+        }
+
+        await db.SaveChangesAsync();
         await LoadFeeds();
         await RefreshCalendarNow();
     }
@@ -1012,6 +1049,6 @@
         var lookAheadDays = Configuration.GetValue("Calendar:LookAheadDays", 14);
         var events = await CalendarService.GetUpcomingEventsAsync(
             _feeds.Where(f => f.Enabled), lookAheadDays);
-        State.UpdateEvents(events);
+        State.UpdateEvents(events, _feeds.Where(feed => feed.Enabled));
     }
 }
