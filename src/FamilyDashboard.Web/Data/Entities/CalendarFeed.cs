@@ -21,5 +21,7 @@ public class CalendarFeed
     /// <summary>Hex color used to tag events from this calendar on the dashboard.</summary>
     public string Color { get; set; } = "#3B8BD4";
 
+    public string Icon { get; set; } = "calendar-days";
+
     public bool Enabled { get; set; } = true;
 }

@@ -73,7 +73,7 @@ var forwardedHeadersOptions = new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 };
 
-forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownIPNetworks.Clear();
 forwardedHeadersOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeadersOptions);
 
@@ -107,13 +107,34 @@ using (var scope = app.Services.CreateScope())
         """);
 
     var feedColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('CalendarFeeds')").ToList();
-    foreach (var column in new[] { "SourceType", "ExternalId" })
+    foreach (var column in new[] { "SourceType", "ExternalId", "Icon" })
     {
         if (!feedColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
         {
-            var defaultValue = column == "SourceType" ? "Ics" : "";
-            db.Database.ExecuteSqlInterpolated($"ALTER TABLE CalendarFeeds ADD COLUMN {column} TEXT NOT NULL DEFAULT {defaultValue}");
+            switch (column)
+            {
+                case "SourceType":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE CalendarFeeds ADD COLUMN SourceType TEXT NOT NULL DEFAULT 'Ics'");
+                    break;
+                case "ExternalId":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE CalendarFeeds ADD COLUMN ExternalId TEXT NOT NULL DEFAULT ''");
+                    break;
+                case "Icon":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE CalendarFeeds ADD COLUMN Icon TEXT NOT NULL DEFAULT 'calendar-days'");
+                    break;
+            }
         }
+    }
+
+    foreach (var (legacyIcon, iconName) in new[]
+    {
+        ("📅", "calendar-days"), ("🏠", "house"), ("🎂", "cake-candles"), ("🏫", "school"),
+        ("⚽", "futbol"), ("🎵", "music"), ("✈️", "plane"), ("💼", "briefcase"),
+        ("🩺", "stethoscope"), ("🛒", "cart-shopping"), ("🐾", "paw"), ("🎉", "flag"),
+        ("⭐", "star"), ("🌿", "leaf"), ("🚗", "car"), ("👪", "people-group")
+    })
+    {
+        db.Database.ExecuteSqlInterpolated($"UPDATE CalendarFeeds SET Icon = {iconName} WHERE Icon = {legacyIcon}");
     }
 
     db.Database.ExecuteSqlRaw("""
@@ -149,7 +170,7 @@ using (var scope = app.Services.CreateScope())
     }
 
     var widgetColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('Widgets')").ToList();
-    foreach (var column in new[] { "PositionX", "PositionY", "Width", "Height", "CalendarNames", "PhotoPath" })
+    foreach (var column in new[] { "PositionX", "PositionY", "Width", "Height", "CalendarNames", "CalendarWeeks", "PhotoPath" })
     {
         if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
         {
@@ -169,6 +190,9 @@ using (var scope = app.Services.CreateScope())
                     break;
                 case "CalendarNames":
                     db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN CalendarNames TEXT NOT NULL DEFAULT ''");
+                    break;
+                case "CalendarWeeks":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN CalendarWeeks INTEGER NOT NULL DEFAULT 5");
                     break;
                 case "PhotoPath":
                     db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN PhotoPath TEXT NOT NULL DEFAULT ''");

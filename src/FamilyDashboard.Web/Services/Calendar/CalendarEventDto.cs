@@ -6,4 +6,7 @@ public record CalendarEventDto(
     DateTimeOffset End,
     bool IsAllDay,
     string CalendarName,
-    string Color);
+    string Color,
+    string Icon);
+
+public sealed record CalendarLegendDto(string CalendarName, string Color, string Icon);

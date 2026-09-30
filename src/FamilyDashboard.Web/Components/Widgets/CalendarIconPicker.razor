@@ -1,0 +1,130 @@
+<div class="calendar-icon-picker">
+    <button type="button" class="calendar-icon-trigger" aria-expanded="@_isOpen" @onclick="TogglePicker">
+        <i class="fa-solid fa-@Icon" aria-hidden="true"></i>
+        <span>@SelectedLabel</span>
+        <span class="calendar-icon-change">Choose icon</span>
+    </button>
+    @if (_isOpen)
+    {
+        <div class="calendar-icon-popover">
+            <div class="calendar-icon-toolbar">
+                <label class="visually-hidden" for="@SearchInputId">Search icons</label>
+                <input id="@SearchInputId" class="calendar-icon-search" type="search" placeholder="Search icons..." @bind="_search" @bind:event="oninput" />
+                <label class="visually-hidden" for="@CategorySelectId">Filter icon category</label>
+                <select id="@CategorySelectId" class="calendar-icon-category" @bind="_category">
+                    @foreach (var category in Categories)
+                    {
+                        <option value="@category">@category</option>
+                    }
+                </select>
+                <button type="button" class="calendar-icon-close" aria-label="Close icon picker" @onclick="ClosePicker">×</button>
+            </div>
+            <div class="calendar-icon-results" role="listbox" aria-label="Available calendar icons">
+                @foreach (var icon in FilteredIcons)
+                {
+                    <button type="button" class="calendar-icon-option @(Icon == icon.Name ? "selected" : "")"
+                            title="@icon.Label" aria-label="@icon.Label" aria-selected="@(Icon == icon.Name)"
+                            @onclick="() => ChooseIcon(icon)">
+                        <i class="fa-solid fa-@icon.Name" aria-hidden="true"></i>
+                        <span>@icon.Label</span>
+                    </button>
+                }
+                @if (!FilteredIcons.Any())
+                {
+                    <p class="calendar-icon-empty">No icons match this search.</p>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private readonly string _pickerId = $"calendar-icon-{Guid.NewGuid():N}";
+
+    [Parameter]
+    public string Icon { get; set; } = "calendar-days";
+
+    [Parameter]
+    public EventCallback<string> IconChanged { get; set; }
+
+    private bool _isOpen;
+    private string _search = string.Empty;
+    private string _category = "All categories";
+    private string SearchInputId => $"{_pickerId}-search";
+    private string CategorySelectId => $"{_pickerId}-category";
+
+    private static readonly string[] Categories =
+    [
+        "All categories", "Calendar & time", "Family & home", "Work & school",
+        "Activities", "Health", "Travel", "Food & nature", "General"
+    ];
+
+    private static readonly IconOption[] Icons =
+    [
+        new("calendar-days", "Calendar", "Calendar & time"),
+        new("calendar-check", "Calendar check", "Calendar & time"),
+        new("clock", "Clock", "Calendar & time"),
+        new("bell", "Reminder", "Calendar & time"),
+        new("house", "Home", "Family & home"),
+        new("people-group", "Family", "Family & home"),
+        new("users", "Group", "Family & home"),
+        new("baby", "Baby", "Family & home"),
+        new("cake-candles", "Birthday", "Family & home"),
+        new("paw", "Pets", "Family & home"),
+        new("briefcase", "Work", "Work & school"),
+        new("laptop", "Computer", "Work & school"),
+        new("book-open", "Books", "Work & school"),
+        new("school", "School", "Work & school"),
+        new("graduation-cap", "Graduation", "Work & school"),
+        new("clipboard", "Tasks", "Work & school"),
+        new("dumbbell", "Fitness", "Activities"),
+        new("person-running", "Running", "Activities"),
+        new("volleyball", "Volleyball", "Activities"),
+        new("basketball", "Basketball", "Activities"),
+        new("baseball", "Baseball", "Activities"),
+        new("music", "Music", "Activities"),
+        new("guitar", "Guitar", "Activities"),
+        new("stethoscope", "Medical", "Health"),
+        new("pills", "Medicine", "Health"),
+        new("heart", "Heart", "Health"),
+        new("plane", "Flight", "Travel"),
+        new("car", "Car", "Travel"),
+        new("bus", "Bus", "Travel"),
+        new("bicycle", "Bicycle", "Travel"),
+        new("ship", "Ship", "Travel"),
+        new("utensils", "Meal", "Food & nature"),
+        new("cart-shopping", "Shopping", "Food & nature"),
+        new("leaf", "Garden", "Food & nature"),
+        new("tree", "Outdoors", "Food & nature"),
+        new("dog", "Dog", "Food & nature"),
+        new("cat", "Cat", "Food & nature"),
+        new("star", "Important", "General"),
+        new("gift", "Gift", "General"),
+        new("flag", "Event", "General"),
+        new("camera", "Camera", "General"),
+        new("wrench", "Maintenance", "General")
+    ];
+
+    private IEnumerable<IconOption> FilteredIcons => Icons.Where(icon =>
+        (_category == "All categories" || icon.Category == _category) &&
+        (string.IsNullOrWhiteSpace(_search) ||
+         icon.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ||
+         icon.Label.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ||
+         icon.Category.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+    private string SelectedLabel => Icons.FirstOrDefault(icon => icon.Name == Icon)?.Label ?? "Calendar";
+
+    private void TogglePicker() => _isOpen = !_isOpen;
+    private void ClosePicker() => _isOpen = false;
+
+    private async Task ChooseIcon(IconOption icon)
+    {
+        Icon = icon.Name;
+        await IconChanged.InvokeAsync(icon.Name);
+        _isOpen = false;
+        _search = string.Empty;
+        _category = "All categories";
+    }
+
+    private sealed record IconOption(string Name, string Label, string Category);
+}

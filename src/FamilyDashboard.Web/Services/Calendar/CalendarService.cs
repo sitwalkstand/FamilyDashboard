@@ -54,7 +54,8 @@ public class CalendarService(
                             End: end,
                             IsAllDay: calEvent.IsAllDay,
                             CalendarName: feed.DisplayName,
-                            Color: feed.Color));
+                            Color: feed.Color,
+                            Icon: feed.Icon));
                     }
                 }
             }
