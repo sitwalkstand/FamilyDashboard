@@ -14,6 +14,9 @@
 
   <ItemGroup>
     <None Update="App_Data\google-oauth.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" />
+    <EmbeddedResource Include="Components\Widgets\fontawesome-free-icons.json">
+      <LogicalName>FamilyDashboard.Web.Components.Widgets.fontawesome-free-icons.json</LogicalName>
+    </EmbeddedResource>
 
     <!-- ICS calendar parsing (Google/Outlook/iCloud calendar subscription feeds) -->
     <PackageReference Include="Google.Apis.Auth" Version="1.73.0" />

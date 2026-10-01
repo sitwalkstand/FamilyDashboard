@@ -13,7 +13,7 @@
             @foreach (var calendar in VisibleCalendars)
             {
                 <span class="calendar-legend-item" style="--event-color:@calendar.Color">
-                    <i class="calendar-legend-icon fa-solid fa-@calendar.Icon" aria-hidden="true"></i>
+                    <i class="calendar-legend-icon @CalendarIconValue.GetCssClass(calendar.Icon)" aria-hidden="true"></i>
                     <span>@calendar.CalendarName</span>
                 </span>
             }
@@ -41,7 +41,7 @@
                         @foreach (var ev in day.Events)
                         {
                             <div class="calendar-event" style="--event-color:@ev.Color" title="@ev.Title">
-                                <i class="calendar-event-icon fa-solid fa-@ev.Icon" aria-hidden="true"></i>
+                                <i class="calendar-event-icon @CalendarIconValue.GetCssClass(ev.Icon)" aria-hidden="true"></i>
                                 <span class="calendar-event-time">@(ev.IsAllDay ? "" : ev.Start.ToString("h:mm tt"))</span>
                                 <span class="calendar-event-title">@ev.Title</span>
                             </div>

@@ -1,8 +1,9 @@
 <div class="calendar-icon-picker">
-    <button type="button" class="calendar-icon-trigger" aria-expanded="@_isOpen" @onclick="TogglePicker">
-        <i class="fa-solid fa-@Icon" aria-hidden="true"></i>
+    <button type="button" class="calendar-icon-trigger" title="Change calendar icon" aria-label="@($"Change calendar icon: {SelectedLabel}")"
+            aria-expanded="@_isOpen" @onclick="TogglePicker">
+        <i class="@CalendarIconValue.GetCssClass(Icon)" aria-hidden="true"></i>
         <span>@SelectedLabel</span>
-        <span class="calendar-icon-change">Choose icon</span>
+        <i class="calendar-icon-edit fa-solid fa-pen-to-square" aria-hidden="true"></i>
     </button>
     @if (_isOpen)
     {
@@ -10,28 +11,35 @@
             <div class="calendar-icon-toolbar">
                 <label class="visually-hidden" for="@SearchInputId">Search icons</label>
                 <input id="@SearchInputId" class="calendar-icon-search" type="search" placeholder="Search icons..." @bind="_search" @bind:event="oninput" />
-                <label class="visually-hidden" for="@CategorySelectId">Filter icon category</label>
-                <select id="@CategorySelectId" class="calendar-icon-category" @bind="_category">
-                    @foreach (var category in Categories)
+                <label class="visually-hidden" for="@StyleSelectId">Filter icon style</label>
+                <select id="@StyleSelectId" class="calendar-icon-category" @bind="_style">
+                    @foreach (var style in Styles)
                     {
-                        <option value="@category">@category</option>
+                        <option value="@style">@style</option>
                     }
                 </select>
                 <button type="button" class="calendar-icon-close" aria-label="Close icon picker" @onclick="ClosePicker">×</button>
             </div>
             <div class="calendar-icon-results" role="listbox" aria-label="Available calendar icons">
-                @foreach (var icon in FilteredIcons)
-                {
-                    <button type="button" class="calendar-icon-option @(Icon == icon.Name ? "selected" : "")"
-                            title="@icon.Label" aria-label="@icon.Label" aria-selected="@(Icon == icon.Name)"
-                            @onclick="() => ChooseIcon(icon)">
-                        <i class="fa-solid fa-@icon.Name" aria-hidden="true"></i>
-                        <span>@icon.Label</span>
-                    </button>
-                }
-                @if (!FilteredIcons.Any())
+                @if (FilteredIcons.Count == 0)
                 {
                     <p class="calendar-icon-empty">No icons match this search.</p>
+                }
+                else
+                {
+                    <Virtualize TItem="FontAwesomeIconOption[]" Items="@FilteredIconRows" Context="iconRow" ItemSize="55">
+                        <div class="calendar-icon-row">
+                            @foreach (var icon in iconRow)
+                            {
+                                <button @key="icon.Value" type="button" class="calendar-icon-option @(Icon == icon.Value ? "selected" : "")"
+                                        title="@($"{icon.Label} ({icon.Style})")" aria-label="@($"{icon.Label}, {icon.Style}")" aria-selected="@(Icon == icon.Value)"
+                                        @onclick="() => ChooseIcon(icon)">
+                                    <i class="@CalendarIconValue.GetCssClass(icon.Value)" aria-hidden="true"></i>
+                                    <span>@icon.Label</span>
+                                </button>
+                            }
+                        </div>
+                    </Virtualize>
                 }
             </div>
         </div>
@@ -49,82 +57,40 @@
 
     private bool _isOpen;
     private string _search = string.Empty;
-    private string _category = "All categories";
+    private string _style = "All styles";
     private string SearchInputId => $"{_pickerId}-search";
-    private string CategorySelectId => $"{_pickerId}-category";
+    private string StyleSelectId => $"{_pickerId}-style";
 
-    private static readonly string[] Categories =
-    [
-        "All categories", "Calendar & time", "Family & home", "Work & school",
-        "Activities", "Health", "Travel", "Food & nature", "General"
-    ];
+    private static readonly string[] Styles = ["All styles", "Solid", "Regular", "Brands"];
 
-    private static readonly IconOption[] Icons =
-    [
-        new("calendar-days", "Calendar", "Calendar & time"),
-        new("calendar-check", "Calendar check", "Calendar & time"),
-        new("clock", "Clock", "Calendar & time"),
-        new("bell", "Reminder", "Calendar & time"),
-        new("house", "Home", "Family & home"),
-        new("people-group", "Family", "Family & home"),
-        new("users", "Group", "Family & home"),
-        new("baby", "Baby", "Family & home"),
-        new("cake-candles", "Birthday", "Family & home"),
-        new("paw", "Pets", "Family & home"),
-        new("briefcase", "Work", "Work & school"),
-        new("laptop", "Computer", "Work & school"),
-        new("book-open", "Books", "Work & school"),
-        new("school", "School", "Work & school"),
-        new("graduation-cap", "Graduation", "Work & school"),
-        new("clipboard", "Tasks", "Work & school"),
-        new("dumbbell", "Fitness", "Activities"),
-        new("person-running", "Running", "Activities"),
-        new("volleyball", "Volleyball", "Activities"),
-        new("basketball", "Basketball", "Activities"),
-        new("baseball", "Baseball", "Activities"),
-        new("music", "Music", "Activities"),
-        new("guitar", "Guitar", "Activities"),
-        new("stethoscope", "Medical", "Health"),
-        new("pills", "Medicine", "Health"),
-        new("heart", "Heart", "Health"),
-        new("plane", "Flight", "Travel"),
-        new("car", "Car", "Travel"),
-        new("bus", "Bus", "Travel"),
-        new("bicycle", "Bicycle", "Travel"),
-        new("ship", "Ship", "Travel"),
-        new("utensils", "Meal", "Food & nature"),
-        new("cart-shopping", "Shopping", "Food & nature"),
-        new("leaf", "Garden", "Food & nature"),
-        new("tree", "Outdoors", "Food & nature"),
-        new("dog", "Dog", "Food & nature"),
-        new("cat", "Cat", "Food & nature"),
-        new("star", "Important", "General"),
-        new("gift", "Gift", "General"),
-        new("flag", "Event", "General"),
-        new("camera", "Camera", "General"),
-        new("wrench", "Maintenance", "General")
-    ];
+    private IReadOnlyList<FontAwesomeIconOption> FilteredIcons
+    {
+        get
+        {
+            var search = _search.Trim();
+            return FontAwesomeFreeIconCatalog.Icons
+                .Where(icon => _style == "All styles" || icon.Style == _style)
+                .Where(icon => string.IsNullOrEmpty(search) ||
+                    icon.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    icon.Label.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                    icon.SearchTerms.Contains(search, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+        }
+    }
 
-    private IEnumerable<IconOption> FilteredIcons => Icons.Where(icon =>
-        (_category == "All categories" || icon.Category == _category) &&
-        (string.IsNullOrWhiteSpace(_search) ||
-         icon.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ||
-         icon.Label.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase) ||
-         icon.Category.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)));
+    private ICollection<FontAwesomeIconOption[]> FilteredIconRows => FilteredIcons.Chunk(5).ToList();
 
-    private string SelectedLabel => Icons.FirstOrDefault(icon => icon.Name == Icon)?.Label ?? "Calendar";
+    private string SelectedLabel => FontAwesomeFreeIconCatalog.Icons.FirstOrDefault(icon => icon.Value == Icon)?.Label ?? "Calendar";
 
     private void TogglePicker() => _isOpen = !_isOpen;
     private void ClosePicker() => _isOpen = false;
 
-    private async Task ChooseIcon(IconOption icon)
+    private async Task ChooseIcon(FontAwesomeIconOption icon)
     {
-        Icon = icon.Name;
-        await IconChanged.InvokeAsync(icon.Name);
+        Icon = icon.Value;
+        await IconChanged.InvokeAsync(icon.Value);
         _isOpen = false;
         _search = string.Empty;
-        _category = "All categories";
+        _style = "All styles";
     }
-
-    private sealed record IconOption(string Name, string Label, string Category);
 }
