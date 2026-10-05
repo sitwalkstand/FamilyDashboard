@@ -51,7 +51,8 @@ public sealed class GoogleCalendarService(
         var credential = new UserCredential(flow, "family-dashboard", token);
         var calendarApi = CreateCalendarApi(credential);
         var profile = await calendarApi.CalendarList.List().ExecuteAsync(cancellationToken);
-        var email = profile.Items?.FirstOrDefault(item => string.Equals(item.Id, "primary", StringComparison.OrdinalIgnoreCase))?.Summary
+        // The calendar list reports the primary calendar by its real ID (the account email), never "primary".
+        var email = profile.Items?.FirstOrDefault(item => item.Primary == true)?.Id
             ?? "Google Calendar";
 
         await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
