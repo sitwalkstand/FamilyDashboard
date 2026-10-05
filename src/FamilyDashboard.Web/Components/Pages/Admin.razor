@@ -178,9 +178,11 @@
                             {
                                 @if (_editingGoogleCalendarFeedId == feed.Id)
                                 {
-                                    <input class="google-calendar-name-input" value="@_googleCalendarNameDraft" autofocus
+                                    <input class="google-calendar-name-input" value="@_googleCalendarNameDraft"
+                                           @ref="_googleCalendarNameInput"
                                            aria-label="Dashboard display name for @feed.DisplayName"
                                            @oninput="args => _googleCalendarNameDraft = args.Value?.ToString() ?? string.Empty"
+                                           @onkeydown="args => OnGoogleCalendarNameKeyDown(args, feed.Id)"
                                            @onblur="() => UpdateGoogleCalendarDisplayName(feed.Id, _googleCalendarNameDraft)" />
                                 }
                                 else
@@ -483,6 +485,8 @@
     private string? _googleConnectedEmail;
     private int? _editingGoogleCalendarFeedId;
     private string _googleCalendarNameDraft = string.Empty;
+    private ElementReference _googleCalendarNameInput;
+    private bool _focusGoogleCalendarNameInput;
     private IReadOnlyList<IBrowserFile> _selectedPhotos = [];
     private bool _isUploadingPhotos;
     private string? _photoUploadMessage;
@@ -518,6 +522,16 @@
         await LoadFeeds();
         await LoadGoogleCalendars();
         await LoadWeatherSettings();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // autofocus is ignored on inputs inserted after page load, so focus the rename box explicitly.
+        if (_focusGoogleCalendarNameInput)
+        {
+            _focusGoogleCalendarNameInput = false;
+            await _googleCalendarNameInput.FocusAsync();
+        }
     }
 
     private async Task LoadScreens()
@@ -1033,7 +1047,12 @@
         await using var db = await DbFactory.CreateDbContextAsync();
         var feed = await db.CalendarFeeds.SingleOrDefaultAsync(item =>
             item.SourceType == "Google" && item.ExternalId == calendar.Id);
-        if (selected && feed is null)
+        if (selected && feed is not null)
+        {
+            // A feed disabled from the feeds table shows as unselected here; re-enable it rather than ignoring the click.
+            feed.Enabled = true;
+        }
+        else if (selected)
         {
             db.CalendarFeeds.Add(new CalendarFeed
             {
@@ -1102,6 +1121,12 @@
 
     private async Task UpdateGoogleCalendarDisplayName(int feedId, string? displayName)
     {
+        // Enter and blur can both fire for one edit, and Escape cancels before blur; only the first save counts.
+        if (_editingGoogleCalendarFeedId != feedId)
+        {
+            return;
+        }
+
         _editingGoogleCalendarFeedId = null;
         if (string.IsNullOrWhiteSpace(displayName))
         {
@@ -1115,9 +1140,33 @@
             return;
         }
 
-        feed.DisplayName = displayName.Trim();
+        var oldName = feed.DisplayName;
+        var newName = displayName.Trim();
+        if (oldName == newName)
+        {
+            return;
+        }
+
+        feed.DisplayName = newName;
+
+        // Widgets store their selected calendars by display name, so carry the rename over to them.
+        var widgets = await db.Widgets.Where(widget => widget.CalendarNames != "").ToListAsync();
+        foreach (var widget in widgets)
+        {
+            var names = ParseCalendarNames(widget.CalendarNames);
+            if (names.RemoveAll(name => string.Equals(name, oldName, StringComparison.OrdinalIgnoreCase)) > 0)
+            {
+                if (!names.Contains(newName, StringComparer.OrdinalIgnoreCase))
+                {
+                    names.Add(newName);
+                }
+                widget.CalendarNames = string.Join("|", names);
+            }
+        }
+
         await db.SaveChangesAsync();
         await LoadFeeds();
+        await LoadScreens();
         await RefreshCalendarNow();
     }
 
@@ -1125,6 +1174,19 @@
     {
         _editingGoogleCalendarFeedId = feed.Id;
         _googleCalendarNameDraft = feed.DisplayName;
+        _focusGoogleCalendarNameInput = true;
+    }
+
+    private async Task OnGoogleCalendarNameKeyDown(KeyboardEventArgs args, int feedId)
+    {
+        if (args.Key == "Enter")
+        {
+            await UpdateGoogleCalendarDisplayName(feedId, _googleCalendarNameDraft);
+        }
+        else if (args.Key == "Escape")
+        {
+            _editingGoogleCalendarFeedId = null;
+        }
     }
 
     private async Task UpdateFeedEnabled(CalendarFeed feed, bool enabled)
