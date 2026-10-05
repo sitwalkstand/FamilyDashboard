@@ -527,6 +527,15 @@ html, body {
     margin-top: 0;
 }
 
+.admin-footer {
+    max-width: 1400px;
+    margin-top: 2.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid #cdd5d1;
+    color: #7a8a86;
+    font-size: .85rem;
+}
+
 .admin-tabs {
     display: flex;
     gap: .35rem;

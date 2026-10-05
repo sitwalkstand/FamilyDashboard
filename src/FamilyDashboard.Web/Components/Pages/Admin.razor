@@ -355,6 +355,14 @@
 </section>
 }
 
+<footer class="admin-footer">
+    Version @BuildInfo.Version
+    @if (BuildInfo.BuildDate is { } buildDate)
+    {
+        <span> · Built @buildDate.UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'")</span>
+    }
+</footer>
+
 </div>
 
 @if (_isWidgetModalOpen && SelectedWidget is not null)
