@@ -18,8 +18,11 @@ public class CalendarService(
         CancellationToken cancellationToken = default)
     {
         var results = new List<CalendarEventDto>();
-        var rangeStart = DateTime.Today;
-        var rangeEnd = rangeStart.AddDays(lookAheadDays);
+        // Start at the beginning of the current week (Sunday) so the calendar widget's
+        // first row also shows events from earlier this week, not just from today on.
+        var today = DateTime.Today;
+        var rangeStart = today.AddDays(-(int)today.DayOfWeek);
+        var rangeEnd = today.AddDays(lookAheadDays);
         var googleConnectionAvailable = !feeds.Any(feed =>
             feed.Enabled && string.Equals(feed.SourceType, "Google", StringComparison.OrdinalIgnoreCase)) ||
             await googleCalendarService.IsConnectedAsync(cancellationToken);

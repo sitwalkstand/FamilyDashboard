@@ -530,7 +530,18 @@
         await LoadFeeds();
         await LoadGoogleCalendars();
         await LoadWeatherSettings();
+
+        // The OAuth callback redirects here with ?google=connected. Refresh right away so Google
+        // events appear without waiting for CalendarRefreshWorker's next tick. Skip the prerender
+        // pass so the feeds are only fetched once.
+        if (GoogleStatus == "connected" && RendererInfo.IsInteractive)
+        {
+            await RefreshCalendarNow();
+        }
     }
+
+    [SupplyParameterFromQuery(Name = "google")]
+    private string? GoogleStatus { get; set; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
