@@ -14,21 +14,24 @@
 
   <ItemGroup>
     <None Update="App_Data\google-oauth.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" />
+    <EmbeddedResource Include="Components\Widgets\fontawesome-free-icons.json">
+      <LogicalName>FamilyDashboard.Web.Components.Widgets.fontawesome-free-icons.json</LogicalName>
+    </EmbeddedResource>
 
     <!-- ICS calendar parsing (Google/Outlook/iCloud calendar subscription feeds) -->
-    <PackageReference Include="Google.Apis.Auth" Version="1.73.0" />
-    <PackageReference Include="Google.Apis.Calendar.v3" Version="1.73.0.3979" />
+    <PackageReference Include="Google.Apis.Auth" Version="1.77.0" />
+    <PackageReference Include="Google.Apis.Calendar.v3" Version="1.75.0.4206" />
     <PackageReference Include="Ical.Net" Version="4.3.1" />
 
     <!-- Persistence -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
 
     <!-- Resilience for outbound calls to calendar/weather providers -->
-    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.5.0" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.10.0" />
   </ItemGroup>
 
 </Project>

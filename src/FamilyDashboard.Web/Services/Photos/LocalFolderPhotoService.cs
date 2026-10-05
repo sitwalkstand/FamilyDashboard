@@ -56,6 +56,39 @@ public class LocalFolderPhotoService(IConfiguration configuration, ILogger<Local
         return Task.FromResult(results);
     }
 
+    public Task DeleteAsync(string photoPath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        const string photoPrefix = "/photos/";
+        if (!photoPath.StartsWith(photoPrefix, StringComparison.Ordinal) || photoPath.Contains('\\'))
+        {
+            throw new InvalidOperationException("The photo path is invalid.");
+        }
+
+        var relativePath = photoPath[photoPrefix.Length..];
+        var pathParts = relativePath.Split('/');
+        if (pathParts.Length == 0 || pathParts.Any(part => string.IsNullOrWhiteSpace(part) || part is "." or ".."))
+        {
+            throw new InvalidOperationException("The photo path is invalid.");
+        }
+
+        var photoDirectory = Path.GetFullPath(GetPhotoDirectory());
+        var targetPath = Path.GetFullPath(Path.Combine(photoDirectory, Path.Combine(pathParts)));
+        var directoryPrefix = Path.EndsInDirectorySeparator(photoDirectory)
+            ? photoDirectory
+            : photoDirectory + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!targetPath.StartsWith(directoryPrefix, comparison) ||
+            !SupportedExtensions.Contains(Path.GetExtension(targetPath).ToLowerInvariant()))
+        {
+            throw new InvalidOperationException("The photo path is invalid.");
+        }
+
+        File.Delete(targetPath);
+        return Task.CompletedTask;
+    }
+
     private string GetPhotoDirectory()
     {
         var photoDir = configuration["PhotoDirectory"];

@@ -324,7 +324,7 @@ html, body {
     display: flex;
     flex-wrap: wrap;
     gap: .15rem .55rem;
-    max-height: 2.4rem;
+    max-height: 3rem;
     overflow: auto;
     padding: .2rem .15rem;
     border-bottom: 1px solid #262626;
@@ -336,7 +336,7 @@ html, body {
     gap: .18rem;
     min-width: 0;
     color: var(--event-color, #f0f0f0);
-    font-size: .65rem;
+    font-size: .8rem;
     line-height: 1.15;
     white-space: nowrap;
 }
@@ -404,7 +404,7 @@ html, body {
     padding-left: .18rem;
     border-left: 2px solid var(--event-color, #62b9c5);
     color: var(--event-color, #f0f0f0);
-    font-size: .7rem;
+    font-size: .85rem;
     line-height: 1.2;
     white-space: normal;
     overflow-wrap: anywhere;
@@ -1062,6 +1062,31 @@ html, body {
     min-width: 0;
 }
 
+.photo-library-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 1rem;
+    margin-top: 1.25rem;
+}
+
+.photo-library-item {
+    display: grid;
+    align-content: start;
+    gap: .5rem;
+    min-width: 0;
+}
+
+.photo-library-item img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: #e5e9e7;
+}
+
+.photo-library-item .danger-button {
+    justify-self: start;
+}
+
 .upload-message {
     margin-bottom: 0;
     color: #54716a;
@@ -1163,6 +1188,7 @@ html, body {
     border-radius: 3px;
     background: #fff;
     color: #26333a;
+    cursor: pointer;
 }
 
 .calendar-icon-trigger > i {
@@ -1172,9 +1198,10 @@ html, body {
     text-align: center;
 }
 
-.calendar-icon-change {
+.calendar-icon-edit {
+    margin-left: auto;
     color: #71807b;
-    font-size: .72rem;
+    font-size: .85rem;
 }
 
 .calendar-icon-popover {
@@ -1192,9 +1219,13 @@ html, body {
 
 .calendar-icon-toolbar {
     display: grid;
-    grid-template-columns: minmax(100px, 1fr) 145px 2rem;
+    grid-template-columns: minmax(0, 1fr) 2rem;
     gap: .35rem;
     margin-bottom: .55rem;
+}
+
+.calendar-icon-search {
+    grid-column: 1 / -1;
 }
 
 .calendar-icon-search,
@@ -1217,11 +1248,18 @@ html, body {
 }
 
 .calendar-icon-results {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: .2rem;
+    display: flex;
+    flex-direction: column;
     max-height: 250px;
     overflow-y: auto;
+}
+
+.calendar-icon-row {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: .2rem;
+    height: 55px;
 }
 
 .calendar-icon-option {
@@ -1424,6 +1462,13 @@ html, body {
 
 .calendar-picker-item input {
     width: auto;
+}
+
+.calendar-picker-icon {
+    display: inline-flex;
+    width: 1rem;
+    justify-content: center;
+    color: #54716a;
 }
 
 .calendar-picker-item .swatch {
@@ -1685,6 +1730,40 @@ html, body {
     text-align: left;
     padding: 8px;
     border-bottom: 1px solid #333;
+}
+
+.google-calendar-name-trigger {
+    margin: -4px -6px;
+    padding: 4px 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: text;
+    box-sizing: border-box;
+    width: 14rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.google-calendar-name-trigger:hover,
+.google-calendar-name-trigger:focus-visible {
+    border-color: currentColor;
+}
+
+.google-calendar-name-input {
+    box-sizing: border-box;
+    width: 14rem;
+    margin: -4px -6px;
+}
+
+.calendar-feed-enabled {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: #54716a;
+    cursor: pointer;
 }
 
 .url-cell {

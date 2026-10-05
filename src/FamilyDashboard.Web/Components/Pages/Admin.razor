@@ -167,20 +167,53 @@
     {
         <table class="admin-table">
             <thead>
-                <tr><th>Name</th><th>ICS URL</th><th>Icon</th><th>Color</th><th>Enabled</th><th></th></tr>
+                <tr><th>Name</th><th>Source</th><th>Icon</th><th>Color</th><th>Enabled</th><th></th></tr>
             </thead>
             <tbody>
                 @foreach (var feed in _feeds)
                 {
                     <tr>
-                        <td>@feed.DisplayName</td>
-                        <td class="url-cell">@(feed.SourceType == "Google" ? "Google Calendar" : feed.IcsUrl)</td>
+                        <td>
+                            @if (feed.SourceType == "Google")
+                            {
+                                @if (_editingGoogleCalendarFeedId == feed.Id)
+                                {
+                                    <input class="google-calendar-name-input" value="@_googleCalendarNameDraft"
+                                           @ref="_googleCalendarNameInput"
+                                           aria-label="Dashboard display name for @feed.DisplayName"
+                                           @oninput="args => _googleCalendarNameDraft = args.Value?.ToString() ?? string.Empty"
+                                           @onkeydown="args => OnGoogleCalendarNameKeyDown(args, feed.Id)"
+                                           @onblur="() => UpdateGoogleCalendarDisplayName(feed.Id, _googleCalendarNameDraft)" />
+                                }
+                                else
+                                {
+                                    <button type="button" class="google-calendar-name-trigger" title="Edit dashboard name"
+                                            @onclick="() => EditGoogleCalendarName(feed)">@feed.DisplayName</button>
+                                }
+                            }
+                            else
+                            {
+                                @feed.DisplayName
+                            }
+                        </td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(feed.IcsUrl))
+                            {
+                                <a href="@feed.IcsUrl" target="_blank" rel="noopener noreferrer">Open source</a>
+                            }
+                            else if (feed.SourceType == "Google" && !string.IsNullOrWhiteSpace(feed.ExternalId))
+                            {
+                                <a href="@GetGoogleCalendarUrl(feed.ExternalId)" target="_blank" rel="noopener noreferrer">Open Google Calendar</a>
+                            }
+                        </td>
                         <td>
                             <CalendarIconPicker Icon="@feed.Icon" IconChanged="icon => UpdateCalendarAppearance(feed, icon, null)" />
                         </td>
                         <td><input class="calendar-color-input" type="color" aria-label="Color for @feed.DisplayName" value="@feed.Color"
                                    @onchange="args => UpdateCalendarAppearance(feed, null, args.Value?.ToString())" /></td>
-                        <td>@(feed.Enabled ? "Yes" : "No")</td>
+                        <td><input class="calendar-feed-enabled" type="checkbox" checked="@feed.Enabled"
+                                   aria-label="Enable @feed.DisplayName" title="Enable @feed.DisplayName"
+                                   @onchange="args => UpdateFeedEnabled(feed, args.Value is true)" /></td>
                         <td><button class="danger-button" @onclick="() => Delete(feed.Id)">Remove</button></td>
                     </tr>
                 }
@@ -277,6 +310,22 @@
     {
         <p class="upload-message">@_photoUploadMessage</p>
     }
+    @if (State.PhotoPaths.Count == 0)
+    {
+        <div class="feed-empty">No photos available.</div>
+    }
+    else
+    {
+        <div class="photo-library-grid">
+            @foreach (var photo in State.PhotoPaths)
+            {
+                <div class="photo-library-item">
+                    <img src="@photo" alt="Uploaded family photo" loading="lazy" />
+                    <button type="button" class="danger-button" @onclick="() => RemovePhoto(photo)">Remove</button>
+                </div>
+            }
+        </div>
+    }
 </section>
 
 }
@@ -355,7 +404,7 @@
                                     <label class="calendar-picker-item">
                                         <input type="checkbox" checked="@IsCalendarSelected(feed.DisplayName)"
                                                @onchange="args => ToggleCalendar(feed.DisplayName, args.Value is true)" />
-                                        <span class="calendar-picker-icon">@feed.Icon</span>
+                                        <span class="calendar-picker-icon"><i class="@CalendarIconValue.GetCssClass(feed.Icon)" aria-hidden="true"></i></span>
                                         <span class="swatch" style="background:@feed.Color"></span>
                                         <span>@feed.DisplayName</span>
                                         @if (!feed.Enabled)
@@ -434,6 +483,10 @@
     private CalendarFeed _modalFeed = new();
     private List<GoogleCalendarInfo> _googleCalendars = [];
     private string? _googleConnectedEmail;
+    private int? _editingGoogleCalendarFeedId;
+    private string _googleCalendarNameDraft = string.Empty;
+    private ElementReference _googleCalendarNameInput;
+    private bool _focusGoogleCalendarNameInput;
     private IReadOnlyList<IBrowserFile> _selectedPhotos = [];
     private bool _isUploadingPhotos;
     private string? _photoUploadMessage;
@@ -460,12 +513,25 @@
     private DashboardScreen? SelectedScreen => _screens.FirstOrDefault(screen => screen.Id == _selectedScreenId);
     private DashboardWidget? SelectedWidget => SelectedScreen?.Widgets.FirstOrDefault(widget => widget.Id == _selectedWidgetId);
 
+    private static string GetGoogleCalendarUrl(string calendarId) =>
+        $"https://calendar.google.com/calendar/u/0/r?cid={Uri.EscapeDataString(calendarId)}";
+
     protected override async Task OnInitializedAsync()
     {
         await LoadScreens();
         await LoadFeeds();
         await LoadGoogleCalendars();
         await LoadWeatherSettings();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // autofocus is ignored on inputs inserted after page load, so focus the rename box explicitly.
+        if (_focusGoogleCalendarNameInput)
+        {
+            _focusGoogleCalendarNameInput = false;
+            await _googleCalendarNameInput.FocusAsync();
+        }
     }
 
     private async Task LoadScreens()
@@ -523,6 +589,26 @@
         finally
         {
             _isUploadingPhotos = false;
+        }
+    }
+
+    private async Task RemovePhoto(string photoPath)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "Permanently remove this photo?"))
+        {
+            return;
+        }
+
+        _photoUploadMessage = null;
+        try
+        {
+            await PhotoService.DeleteAsync(photoPath);
+            State.UpdatePhotos(await PhotoService.ScanAsync());
+            _photoUploadMessage = "Photo removed.";
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _photoUploadMessage = exception.Message;
         }
     }
 
@@ -961,7 +1047,12 @@
         await using var db = await DbFactory.CreateDbContextAsync();
         var feed = await db.CalendarFeeds.SingleOrDefaultAsync(item =>
             item.SourceType == "Google" && item.ExternalId == calendar.Id);
-        if (selected && feed is null)
+        if (selected && feed is not null)
+        {
+            // A feed disabled from the feeds table shows as unselected here; re-enable it rather than ignoring the click.
+            feed.Enabled = true;
+        }
+        else if (selected)
         {
             db.CalendarFeeds.Add(new CalendarFeed
             {
@@ -1023,6 +1114,92 @@
             savedFeed.Color = color;
         }
 
+        await db.SaveChangesAsync();
+        await LoadFeeds();
+        await RefreshCalendarNow();
+    }
+
+    private async Task UpdateGoogleCalendarDisplayName(int feedId, string? displayName)
+    {
+        // Enter and blur can both fire for one edit, and Escape cancels before blur; only the first save counts.
+        if (_editingGoogleCalendarFeedId != feedId)
+        {
+            return;
+        }
+
+        _editingGoogleCalendarFeedId = null;
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var feed = await db.CalendarFeeds.FindAsync(feedId);
+        if (feed is null || feed.SourceType != "Google")
+        {
+            return;
+        }
+
+        var oldName = feed.DisplayName;
+        var newName = displayName.Trim();
+        if (oldName == newName)
+        {
+            return;
+        }
+
+        feed.DisplayName = newName;
+
+        // Widgets store their selected calendars by display name, so carry the rename over to them.
+        var widgets = await db.Widgets.Where(widget => widget.CalendarNames != "").ToListAsync();
+        foreach (var widget in widgets)
+        {
+            var names = ParseCalendarNames(widget.CalendarNames);
+            if (names.RemoveAll(name => string.Equals(name, oldName, StringComparison.OrdinalIgnoreCase)) > 0)
+            {
+                if (!names.Contains(newName, StringComparer.OrdinalIgnoreCase))
+                {
+                    names.Add(newName);
+                }
+                widget.CalendarNames = string.Join("|", names);
+            }
+        }
+
+        await db.SaveChangesAsync();
+        await LoadFeeds();
+        await LoadScreens();
+        await RefreshCalendarNow();
+    }
+
+    private void EditGoogleCalendarName(CalendarFeed feed)
+    {
+        _editingGoogleCalendarFeedId = feed.Id;
+        _googleCalendarNameDraft = feed.DisplayName;
+        _focusGoogleCalendarNameInput = true;
+    }
+
+    private async Task OnGoogleCalendarNameKeyDown(KeyboardEventArgs args, int feedId)
+    {
+        if (args.Key == "Enter")
+        {
+            await UpdateGoogleCalendarDisplayName(feedId, _googleCalendarNameDraft);
+        }
+        else if (args.Key == "Escape")
+        {
+            _editingGoogleCalendarFeedId = null;
+        }
+    }
+
+    private async Task UpdateFeedEnabled(CalendarFeed feed, bool enabled)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var savedFeed = await db.CalendarFeeds.FindAsync(feed.Id);
+        if (savedFeed is null)
+        {
+            await LoadFeeds();
+            return;
+        }
+
+        savedFeed.Enabled = enabled;
         await db.SaveChangesAsync();
         await LoadFeeds();
         await RefreshCalendarNow();
