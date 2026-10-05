@@ -7,10 +7,15 @@ on:
 permissions:
   contents: read
   packages: write
-  
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
 jobs:
   build-and-push:
     runs-on: [self-hosted, linux]
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -26,8 +31,9 @@ jobs:
           IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}
           docker build -t "$IMAGE:latest" .
           docker push "$IMAGE:latest"
-          
+
       - name: Deploy to FamilyDashboard LXC
+        timeout-minutes: 10
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
@@ -37,5 +43,11 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key deploy@192.168.1.150 \
+          ssh -o StrictHostKeyChecking=no -o BatchMode=yes \
+              -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+              -i ~/.ssh/deploy_key deploy@192.168.1.150 \
             "cd ~/familydashboard && git pull origin main && docker compose pull dashboard && docker compose build caddy && docker compose up -d"
+
+      - name: Clean up old images
+        if: always()
+        run: docker image prune -f || true
