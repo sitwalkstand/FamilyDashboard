@@ -850,6 +850,7 @@
         }
         await db.SaveChangesAsync();
         await LoadScreens();
+        State.NotifyScreensChanged();
     }
 
     private string WidgetIcon(string type) => type switch
@@ -883,6 +884,7 @@
         db.Screens.Add(screen);
         await db.SaveChangesAsync();
         await LoadScreens();
+        State.NotifyScreensChanged();
     }
 
     private async Task SaveScreen(DashboardScreen screen)
@@ -893,6 +895,7 @@
         db.Screens.Update(screen);
         await db.SaveChangesAsync();
         await LoadScreens();
+        State.NotifyScreensChanged();
     }
 
     private async Task DeleteScreen(int id)
@@ -905,6 +908,7 @@
             await db.SaveChangesAsync();
         }
         await LoadScreens();
+        State.NotifyScreensChanged();
     }
 
     private async Task AddWidget(DashboardScreen screen, string widgetType)
@@ -934,6 +938,7 @@
             .Select(widget => (int?)widget.Id)
             .FirstOrDefaultAsync();
         await LoadScreens();
+        State.NotifyScreensChanged();
         _selectedWidgetId = addedWidgetId ?? 0;
         _isWidgetModalOpen = _selectedWidgetId != 0;
     }
@@ -949,6 +954,7 @@
         db.Widgets.Update(widget);
         await db.SaveChangesAsync();
         await LoadScreens();
+        State.NotifyScreensChanged();
     }
 
     private async Task DeleteWidget(int id)
@@ -961,6 +967,7 @@
             await db.SaveChangesAsync();
         }
         await LoadScreens();
+        State.NotifyScreensChanged();
     }
 
     private async Task LoadFeeds()
@@ -1186,6 +1193,7 @@
         await db.SaveChangesAsync();
         await LoadFeeds();
         await LoadScreens();
+        State.NotifyScreensChanged();
         await RefreshCalendarNow();
     }
 

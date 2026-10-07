@@ -23,6 +23,11 @@ public class DashboardStateService
     public event Action? WeatherChanged;
     public event Action? PhotosChanged;
 
+    /// <summary>Raised when screens or widgets are changed from the admin page.</summary>
+    public event Action? ScreensChanged;
+
+    public void NotifyScreensChanged() => ScreensChanged?.Invoke();
+
     public void UpdateEvents(List<CalendarEventDto> events, IEnumerable<CalendarFeed>? feeds = null)
     {
         lock (_lock)

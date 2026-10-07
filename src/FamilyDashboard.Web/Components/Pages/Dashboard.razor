@@ -5,6 +5,7 @@
 @using FamilyDashboard.Web.Data.Entities
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<AppDbContext> DbFactory
+@inject DashboardStateService State
 
 @if (_screens.Count == 0)
 {
@@ -48,8 +49,17 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadScreens();
+        State.ScreensChanged += OnScreensChanged;
         _screenTimer = new Timer(_ => Tick(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
+
+    // Admin edits push here over the existing circuit, so the kiosk picks up
+    // layout changes without a browser reload.
+    private void OnScreensChanged() => InvokeAsync(async () =>
+    {
+        await LoadScreens();
+        StateHasChanged();
+    });
 
     private async Task LoadScreens()
     {
@@ -92,6 +102,10 @@ else
         return $"grid-column: {x} / span {width}; grid-row: {y} / span {height};";
     }
 
-    public void Dispose() => _screenTimer?.Dispose();
+    public void Dispose()
+    {
+        State.ScreensChanged -= OnScreensChanged;
+        _screenTimer?.Dispose();
+    }
 }
 
