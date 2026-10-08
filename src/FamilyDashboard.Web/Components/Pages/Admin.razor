@@ -375,7 +375,6 @@
             </div>
             <div class="modal-body">
                 <div class="modal-settings">
-                    <label>Block type<select @bind="SelectedWidget.WidgetType">@foreach (var type in WidgetTypes) { <option value="@type">@type</option> }</select></label>
                     @if (SelectedWidget.WidgetType == "Calendar")
                     {
                         <label>Rolling month weeks<input type="number" min="1" max="6" @bind="SelectedWidget.CalendarWeeks" /></label>
