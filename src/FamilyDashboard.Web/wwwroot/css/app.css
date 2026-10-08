@@ -1381,31 +1381,7 @@ html, body {
 }
 
 .modal-body {
-    display: grid;
-    grid-template-columns: 180px 1fr;
-    gap: 1.5rem;
     padding: 1.25rem;
-}
-
-.modal-preview {
-    display: grid;
-    min-height: 180px;
-    place-content: center;
-    gap: .4rem;
-    border: 1px solid #78918c;
-    border-radius: 5px;
-    background: #395153;
-    color: #fff;
-    text-align: center;
-}
-
-.modal-preview .canvas-block-icon {
-    font-size: 2rem;
-}
-
-.modal-preview small {
-    color: rgba(255, 255, 255, .7);
-    font-size: .7rem;
 }
 
 .modal-settings {
@@ -1707,14 +1683,6 @@ html, body {
 
     .feed-form-grid {
         display: grid;
-    }
-
-    .modal-body {
-        grid-template-columns: 1fr;
-    }
-
-    .modal-preview {
-        min-height: 110px;
     }
 
     .modal-footer {

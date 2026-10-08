@@ -374,11 +374,6 @@
                 <button class="modal-close" aria-label="Close widget settings" @onclick="CloseWidgetModal">×</button>
             </div>
             <div class="modal-body">
-                <div class="modal-preview widget-@SelectedWidget.WidgetType.ToLowerInvariant()">
-                    <span class="canvas-block-icon">@WidgetIcon(SelectedWidget.WidgetType)</span>
-                    <strong>@SelectedWidget.WidgetType</strong>
-                    <small>Live preview block</small>
-                </div>
                 <div class="modal-settings">
                     <label>Block type<select @bind="SelectedWidget.WidgetType">@foreach (var type in WidgetTypes) { <option value="@type">@type</option> }</select></label>
                     @if (SelectedWidget.WidgetType == "Calendar")
