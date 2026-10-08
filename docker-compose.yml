@@ -10,6 +10,9 @@ services:
       # Photos export folder, a Samba share, etc. Mount it read-only if you like.
       - ${PHOTO_FOLDER:-./photos}:/photos
     environment:
+      # The clock and calendar use the server's local time; without this the
+      # container runs in UTC. Override with TZ in the host's .env if needed.
+      - TZ=${TZ:-America/New_York}
       - Weather__Latitude=38.9894
       - Weather__Longitude=-77.4794
       # Register http://<server-host>:8080/auth/google/callback in Google Cloud.
