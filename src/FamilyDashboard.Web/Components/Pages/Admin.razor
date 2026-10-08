@@ -381,16 +381,6 @@
                 </div>
                 <div class="modal-settings">
                     <label>Block type<select @bind="SelectedWidget.WidgetType">@foreach (var type in WidgetTypes) { <option value="@type">@type</option> }</select></label>
-                    <div class="property-section-title">Position</div>
-                    <div class="property-grid">
-                        <label>Column<input type="number" min="1" max="12" @bind="SelectedWidget.PositionX" /></label>
-                        <label>Row<input type="number" min="1" max="12" @bind="SelectedWidget.PositionY" /></label>
-                    </div>
-                    <div class="property-section-title">Size</div>
-                    <div class="property-grid">
-                        <label>Width<input type="number" min="1" max="12" @bind="SelectedWidget.Width" /></label>
-                        <label>Height<input type="number" min="1" max="12" @bind="SelectedWidget.Height" /></label>
-                    </div>
                     @if (SelectedWidget.WidgetType == "Calendar")
                     {
                         <label>Rolling month weeks<input type="number" min="1" max="6" @bind="SelectedWidget.CalendarWeeks" /></label>
