@@ -221,6 +221,36 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
+    // Weather display options. Defaults keep the widget's original look (current conditions plus a 5-day forecast).
+    foreach (var (column, definition) in new[]
+             {
+                 ("WeatherLocationName", "TEXT NOT NULL DEFAULT ''"),
+                 ("WeatherShowCurrent", "INTEGER NOT NULL DEFAULT 1"),
+                 ("WeatherShowFeelsLike", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowSummary", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowSunriseSunset", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowMoonPhase", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowWind", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowUvIndex", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowHumidity", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowPressure", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowVisibility", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherForecastMode", "TEXT NOT NULL DEFAULT 'Daily'"),
+                 ("WeatherForecastLength", "INTEGER NOT NULL DEFAULT 5"),
+                 ("WeatherShowPrecipitationAmount", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowPrecipitationChance", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherCondensed", "INTEGER NOT NULL DEFAULT 0"),
+             })
+    {
+        if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
+        {
+            // Column names and definitions are the constants above, never user input.
+#pragma warning disable EF1002
+            db.Database.ExecuteSqlRaw($"ALTER TABLE Widgets ADD COLUMN {column} {definition}");
+#pragma warning restore EF1002
+        }
+    }
+
     // Weather used to be configured once in Settings. When the per-widget columns first appear,
     // carry the old global values over so existing Weather widgets keep their location.
     if (addedWidgetWeatherColumns)

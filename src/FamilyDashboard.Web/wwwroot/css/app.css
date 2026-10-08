@@ -278,6 +278,10 @@ html, body {
     flex: 0 0 auto;
 }
 
+.weather-widget {
+    flex-wrap: wrap;
+}
+
 .weather-widget .high-low {
     margin-top: .35rem;
     font-size: clamp(.85rem, 1.6vw, 1.2rem);
@@ -296,6 +300,92 @@ html, body {
     text-align: center;
     font-size: clamp(.75rem, 1.5vw, 1.1rem);
     white-space: nowrap;
+}
+
+.weather-widget .current-main {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+.weather-widget .current-icon {
+    font-size: clamp(2rem, 4.5vw, 4rem);
+}
+
+.weather-widget .feels-like,
+.weather-widget .weather-summary {
+    margin-top: .2rem;
+    font-size: clamp(.8rem, 1.4vw, 1.05rem);
+    opacity: .85;
+}
+
+.weather-widget .weather-extras {
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    align-content: end;
+    gap: .25rem 1.25rem;
+    font-size: clamp(.75rem, 1.3vw, 1rem);
+    white-space: nowrap;
+}
+
+.weather-widget .weather-extra {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.weather-widget .weather-extra i {
+    width: 1.1em;
+    text-align: center;
+    opacity: .8;
+}
+
+.forecast-day .forecast-icon {
+    display: block;
+    margin: .3rem 0;
+    font-size: 1.3em;
+}
+
+.forecast-day .day-precip {
+    display: flex;
+    justify-content: center;
+    gap: .35rem;
+    margin-top: .2rem;
+    font-size: .8em;
+    opacity: .85;
+}
+
+.forecast-day .day-precip i {
+    align-self: center;
+    font-size: .85em;
+}
+
+.weather-widget.condensed {
+    gap: .6rem;
+}
+
+.weather-widget.condensed .current-temp {
+    font-size: clamp(2rem, 4vw, 3.25rem);
+}
+
+.weather-widget.condensed .current-icon {
+    font-size: clamp(1.4rem, 3vw, 2.4rem);
+}
+
+.weather-widget.condensed .high-low,
+.weather-widget.condensed .feels-like,
+.weather-widget.condensed .weather-summary,
+.weather-widget.condensed .weather-extras,
+.weather-widget.condensed .forecast-day {
+    font-size: clamp(.65rem, 1.1vw, .85rem);
+}
+
+.weather-widget.condensed .forecast-row {
+    gap: clamp(.35rem, 1.2vw, 1rem);
+}
+
+.weather-widget.condensed .forecast-icon {
+    margin: .15rem 0;
 }
 
 .calendar-widget {
@@ -1372,18 +1462,112 @@ html, body {
     font-size: .8rem;
 }
 
-.weather-zip-lookup {
+.weather-location-search {
     display: grid;
     grid-template-columns: 1fr auto;
-    align-items: end;
     gap: .5rem;
 }
 
-.weather-zip-lookup label {
-    display: grid;
-    gap: .3rem;
+.field-hint {
+    margin-top: -.3rem;
     color: #71807b;
-    font-size: .8rem;
+    font-size: .75rem;
+    line-height: 1.5;
+}
+
+.field-hint code {
+    padding: .05rem .3rem;
+    border-radius: 3px;
+    background: #edf2ef;
+    color: #26333a;
+}
+
+.modal-settings .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    color: #26333a;
+    font-size: .85rem;
+    white-space: normal;
+}
+
+.modal-settings .checkbox-label input {
+    width: auto;
+    margin: 0;
+}
+
+.modal-settings .checkbox-label small {
+    color: #8a9893;
+}
+
+.modal-settings .checkbox-label .fa-solid {
+    width: 1rem;
+    color: #71807b;
+    text-align: center;
+}
+
+.weather-suboptions {
+    display: grid;
+    gap: .55rem;
+    margin-left: .45rem;
+    padding-left: .9rem;
+    border-left: 2px solid #dce2df;
+}
+
+.weather-suboptions.disabled {
+    opacity: .5;
+}
+
+.weather-extra-options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .55rem 1rem;
+}
+
+.property-section-title .select-links {
+    margin-left: .5rem;
+    color: #8a9893;
+    font-weight: 400;
+    text-transform: none;
+}
+
+.property-section-title .select-links button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #bb8440;
+    font-size: inherit;
+    cursor: pointer;
+}
+
+.segmented-control {
+    display: inline-flex;
+    justify-self: start;
+    border: 1px solid #bb8440;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.segmented-control button {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    margin: 0;
+    padding: .4rem .9rem;
+    border: 0;
+    border-left: 1px solid #bb8440;
+    border-radius: 0;
+    background: #fff;
+    color: #26333a;
+}
+
+.segmented-control button:first-child {
+    border-left: 0;
+}
+
+.segmented-control button.selected {
+    background: #bb8440;
+    color: #fff;
 }
 
 .modal-settings input,
