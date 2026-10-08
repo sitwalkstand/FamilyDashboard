@@ -14,6 +14,10 @@ public class DashboardWidget
     public string CalendarNames { get; set; } = "";
     public int CalendarWeeks { get; set; } = 5;
     public string PhotoPath { get; set; } = "";
+    public double WeatherLatitude { get; set; } = 38.9894;
+    public double WeatherLongitude { get; set; } = -77.4794;
+    public string WeatherTemperatureUnit { get; set; } = "fahrenheit";
+    public int WeatherRefreshMinutes { get; set; } = 30;
 
     public DashboardScreen? Screen { get; set; }
 }

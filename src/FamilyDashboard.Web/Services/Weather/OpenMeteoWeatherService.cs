@@ -22,13 +22,13 @@ public class OpenMeteoWeatherService(HttpClient httpClient, ILogger<OpenMeteoWea
             : new WeatherLocation(result.Name, result.Admin1, result.Country, result.Latitude, result.Longitude);
     }
 
-    public async Task<WeatherDto?> GetForecastAsync(double latitude, double longitude, CancellationToken cancellationToken = default)
+    public async Task<WeatherDto?> GetForecastAsync(WeatherLocationKey location, CancellationToken cancellationToken = default)
     {
         var url = "https://api.open-meteo.com/v1/forecast" +
-                   $"?latitude={latitude}&longitude={longitude}" +
+                   $"?latitude={location.Latitude}&longitude={location.Longitude}" +
                    "&current=temperature_2m,weather_code" +
                    "&daily=temperature_2m_max,temperature_2m_min,weather_code" +
-                   "&temperature_unit=fahrenheit&forecast_days=7&timezone=auto";
+                   $"&temperature_unit={WeatherLocationKey.NormalizeUnit(location.TemperatureUnit)}&forecast_days=7&timezone=auto";
 
         try
         {
@@ -43,16 +43,16 @@ public class OpenMeteoWeatherService(HttpClient httpClient, ILogger<OpenMeteoWea
             {
                 forecast.Add(new DailyForecastDto(
                     Date: DateOnly.Parse(response.Daily.Time[i]),
-                    HighF: response.Daily.TempMax[i],
-                    LowF: response.Daily.TempMin[i],
+                    High: response.Daily.TempMax[i],
+                    Low: response.Daily.TempMin[i],
                     WeatherCode: response.Daily.WeatherCode[i]));
             }
 
             return new WeatherDto(
-                CurrentTempF: response.Current.Temperature2m,
+                CurrentTemp: response.Current.Temperature2m,
                 WeatherCode: response.Current.WeatherCode,
-                TodayHighF: forecast.Count > 0 ? forecast[0].HighF : response.Current.Temperature2m,
-                TodayLowF: forecast.Count > 0 ? forecast[0].LowF : response.Current.Temperature2m,
+                TodayHigh: forecast.Count > 0 ? forecast[0].High : response.Current.Temperature2m,
+                TodayLow: forecast.Count > 0 ? forecast[0].Low : response.Current.Temperature2m,
                 Forecast: forecast);
         }
         catch (Exception ex)

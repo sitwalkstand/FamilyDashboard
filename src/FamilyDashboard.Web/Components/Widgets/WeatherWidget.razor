@@ -1,17 +1,18 @@
 @implements IDisposable
 @inject DashboardStateService State
+@using FamilyDashboard.Web.Services.Weather
 
 <div class="widget weather-widget">
-    @if (State.Weather is { } w)
+    @if (State.GetWeather(Location) is { } w)
     {
-        <div class="current-temp">@Math.Round(w.CurrentTempF)&deg;</div>
-        <div class="high-low">H: @Math.Round(w.TodayHighF)&deg; &nbsp; L: @Math.Round(w.TodayLowF)&deg;</div>
+        <div class="current-temp">@Math.Round(w.CurrentTemp)&deg;</div>
+        <div class="high-low">H: @Math.Round(w.TodayHigh)&deg; &nbsp; L: @Math.Round(w.TodayLow)&deg;</div>
         <div class="forecast-row">
             @foreach (var day in w.Forecast.Take(5))
             {
                 <div class="forecast-day">
                     <div class="day-label">@day.Date.ToString("ddd")</div>
-                    <div class="day-temps">@Math.Round(day.HighF)&deg; / @Math.Round(day.LowF)&deg;</div>
+                    <div class="day-temps">@Math.Round(day.High)&deg; / @Math.Round(day.Low)&deg;</div>
                 </div>
             }
         </div>
@@ -23,6 +24,9 @@
 </div>
 
 @code {
+    [Parameter]
+    public WeatherLocationKey Location { get; set; }
+
     protected override void OnInitialized()
     {
         State.WeatherChanged += OnChanged;

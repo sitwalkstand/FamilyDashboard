@@ -24,7 +24,6 @@
     <button class="admin-tab @(_activeTab == AdminTab.Dashboard ? "active" : "")" @onclick="() => _activeTab = AdminTab.Dashboard">Dashboard</button>
     <button class="admin-tab @(_activeTab == AdminTab.Calendar ? "active" : "")" @onclick="() => _activeTab = AdminTab.Calendar">Calendar</button>
     <button class="admin-tab @(_activeTab == AdminTab.Photos ? "active" : "")" @onclick="() => _activeTab = AdminTab.Photos">Photos</button>
-    <button class="admin-tab @(_activeTab == AdminTab.Weather ? "active" : "")" @onclick="() => _activeTab = AdminTab.Weather">Weather</button>
 </nav>
 
 @if (_activeTab == AdminTab.Dashboard)
@@ -330,31 +329,6 @@
 
 }
 
-@if (_activeTab == AdminTab.Weather)
-{
-<section class="feed-section settings-section">
-    <div class="feed-section-heading">
-        <div>
-            <h2>Weather settings</h2>
-            <p class="hint">Configure the location and refresh interval used by the Weather widget.</p>
-        </div>
-    </div>
-    <div class="weather-settings-grid">
-        <label>US ZIP code<input @bind="_weatherZipCode" placeholder="20850" /></label>
-        <button type="button" @onclick="LookupWeatherZip" disabled="@_isLookingUpWeather">@(_isLookingUpWeather ? "Looking up..." : "Use ZIP code")</button>
-        <label>Latitude<input type="number" step="0.0001" @bind="_weatherLatitude" /></label>
-        <label>Longitude<input type="number" step="0.0001" @bind="_weatherLongitude" /></label>
-        <label>Refresh minutes<input type="number" min="5" @bind="_weatherRefreshMinutes" /></label>
-        <label>Temperature unit<select @bind="_weatherTemperatureUnit"><option value="fahrenheit">Fahrenheit</option><option value="celsius">Celsius</option></select></label>
-    </div>
-    <button @onclick="SaveWeatherSettings">Save weather settings</button>
-    @if (!string.IsNullOrWhiteSpace(_weatherMessage))
-    {
-        <p class="upload-message">@_weatherMessage</p>
-    }
-</section>
-}
-
 <footer class="admin-footer">
     Version @BuildInfo.Version
     @if (BuildInfo.BuildDate is { } buildDate)
@@ -447,6 +421,22 @@
                             </div>
                         }
                     }
+                    else if (SelectedWidget.WidgetType == "Weather")
+                    {
+                        <div class="property-section-title">Location</div>
+                        <div class="weather-zip-lookup">
+                            <label>US ZIP code<input @bind="_weatherZipCode" placeholder="20850" /></label>
+                            <button type="button" @onclick="LookupWeatherZip" disabled="@_isLookingUpWeather">@(_isLookingUpWeather ? "Looking up..." : "Use ZIP code")</button>
+                        </div>
+                        <label>Latitude<input type="number" step="0.0001" min="-90" max="90" @bind="SelectedWidget.WeatherLatitude" /></label>
+                        <label>Longitude<input type="number" step="0.0001" min="-180" max="180" @bind="SelectedWidget.WeatherLongitude" /></label>
+                        @if (!string.IsNullOrWhiteSpace(_weatherMessage))
+                        {
+                            <div class="modal-note">@_weatherMessage</div>
+                        }
+                        <label>Temperature unit<select @bind="SelectedWidget.WeatherTemperatureUnit"><option value="fahrenheit">Fahrenheit</option><option value="celsius">Celsius</option></select></label>
+                        <label>Refresh minutes<input type="number" min="5" @bind="SelectedWidget.WeatherRefreshMinutes" /></label>
+                    }
                     <label>Layer order<input type="number" min="0" @bind="SelectedWidget.DisplayOrder" /></label>
                 </div>
             </div>
@@ -461,7 +451,7 @@
 }
 
 @code {
-    private enum AdminTab { Dashboard, Calendar, Photos, Weather }
+    private enum AdminTab { Dashboard, Calendar, Photos }
     private AdminTab _activeTab = AdminTab.Dashboard;
     private List<CalendarFeed> _feeds = [];
     private List<DashboardScreen> _screens = [];
@@ -482,10 +472,6 @@
     private IReadOnlyList<IBrowserFile> _selectedPhotos = [];
     private bool _isUploadingPhotos;
     private string? _photoUploadMessage;
-    private double _weatherLatitude;
-    private double _weatherLongitude;
-    private int _weatherRefreshMinutes;
-    private string _weatherTemperatureUnit = "fahrenheit";
     private string? _weatherMessage;
     private string _weatherZipCode = string.Empty;
     private bool _isLookingUpWeather;
@@ -513,7 +499,6 @@
         await LoadScreens();
         await LoadFeeds();
         await LoadGoogleCalendars();
-        await LoadWeatherSettings();
 
         // The OAuth callback redirects here with ?google=connected. Refresh right away so Google
         // events appear without waiting for CalendarRefreshWorker's next tick. Skip the prerender
@@ -630,6 +615,7 @@
     {
         _selectedWidgetId = id;
         _isWidgetModalOpen = true;
+        ResetWeatherLookup();
     }
 
     private void StartDragging(int id) => _draggedWidgetId = id;
@@ -925,11 +911,16 @@
         State.NotifyScreensChanged();
         _selectedWidgetId = addedWidgetId ?? 0;
         _isWidgetModalOpen = _selectedWidgetId != 0;
+        ResetWeatherLookup();
     }
 
     private async Task SaveWidget(DashboardWidget widget)
     {
         widget.CalendarWeeks = Math.Clamp(widget.CalendarWeeks, 1, 6);
+        widget.WeatherLatitude = Math.Clamp(widget.WeatherLatitude, -90, 90);
+        widget.WeatherLongitude = Math.Clamp(widget.WeatherLongitude, -180, 180);
+        widget.WeatherTemperatureUnit = WeatherLocationKey.NormalizeUnit(widget.WeatherTemperatureUnit);
+        widget.WeatherRefreshMinutes = Math.Max(5, widget.WeatherRefreshMinutes);
         widget.PositionX = Math.Clamp(widget.PositionX, 1, 12);
         widget.PositionY = Math.Clamp(widget.PositionY, 1, 12);
         widget.Width = Math.Clamp(widget.Width, 1, 13 - widget.PositionX);
@@ -960,33 +951,10 @@
         _feeds = await db.CalendarFeeds.ToListAsync();
     }
 
-    private async Task LoadWeatherSettings()
+    private void ResetWeatherLookup()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var settings = await db.Settings.SingleAsync();
-        _weatherLatitude = settings.WeatherLatitude;
-        _weatherLongitude = settings.WeatherLongitude;
-        _weatherRefreshMinutes = settings.WeatherRefreshMinutes;
-        _weatherTemperatureUnit = settings.WeatherTemperatureUnit;
-    }
-
-    private async Task SaveWeatherSettings()
-    {
-        if (_weatherLatitude is < -90 or > 90 || _weatherLongitude is < -180 or > 180)
-        {
-            _weatherMessage = "Latitude must be between -90 and 90, and longitude between -180 and 180.";
-            return;
-        }
-
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var settings = await db.Settings.SingleAsync();
-        settings.WeatherLatitude = _weatherLatitude;
-        settings.WeatherLongitude = _weatherLongitude;
-        settings.WeatherRefreshMinutes = Math.Max(5, _weatherRefreshMinutes);
-        settings.WeatherTemperatureUnit = _weatherTemperatureUnit;
-        await db.SaveChangesAsync();
-        _weatherRefreshMinutes = settings.WeatherRefreshMinutes;
-        _weatherMessage = "Weather settings saved. Restart the app to apply the new refresh interval.";
+        _weatherZipCode = string.Empty;
+        _weatherMessage = null;
     }
 
     private async Task LookupWeatherZip()
@@ -1002,11 +970,16 @@
                 return;
             }
 
-            _weatherLatitude = location.Latitude;
-            _weatherLongitude = location.Longitude;
+            if (SelectedWidget is null)
+            {
+                return;
+            }
+
+            SelectedWidget.WeatherLatitude = Math.Round(location.Latitude, 4);
+            SelectedWidget.WeatherLongitude = Math.Round(location.Longitude, 4);
             var locationName = string.Join(", ", new[] { location.Name, location.Region, location.Country }
                 .Where(value => !string.IsNullOrWhiteSpace(value)));
-            _weatherMessage = $"Coordinates loaded for {locationName}. Save weather settings to apply them.";
+            _weatherMessage = $"Coordinates loaded for {locationName}. Save changes to apply them.";
         }
         catch (HttpRequestException exception)
         {

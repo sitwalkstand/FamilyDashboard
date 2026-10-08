@@ -4,6 +4,7 @@
 @using FamilyDashboard.Web.Data
 @using FamilyDashboard.Web.Data.Entities
 @using Microsoft.EntityFrameworkCore
+@using FamilyDashboard.Web.Services.Weather
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject DashboardStateService State
 
@@ -25,7 +26,7 @@ else
                             <ClockWidget />
                             break;
                         case "Weather":
-                            <WeatherWidget />
+                            <WeatherWidget Location="@WeatherLocationKey.For(widget)" />
                             break;
                         case "Calendar":
                             <CalendarWidget CalendarNames="@widget.CalendarNames" WeeksToDisplay="@widget.CalendarWeeks" />
