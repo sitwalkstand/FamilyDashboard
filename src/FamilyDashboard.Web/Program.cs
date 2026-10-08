@@ -146,6 +146,8 @@ using (var scope = app.Services.CreateScope())
         );
         """);
 
+    // These Settings columns are no longer mapped (weather is configured per widget), but they are
+    // still ensured so the one-time copy into Widgets below always has values to read.
     var settingsColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('Settings')").ToList();
     foreach (var column in new[] { "WeatherLatitude", "WeatherLongitude", "WeatherTemperatureUnit", "WeatherRefreshMinutes" })
     {
@@ -170,7 +172,9 @@ using (var scope = app.Services.CreateScope())
     }
 
     var widgetColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('Widgets')").ToList();
-    foreach (var column in new[] { "PositionX", "PositionY", "Width", "Height", "CalendarNames", "CalendarWeeks", "PhotoPath" })
+    var addedWidgetWeatherColumns = false;
+    foreach (var column in new[] { "PositionX", "PositionY", "Width", "Height", "CalendarNames", "CalendarWeeks", "PhotoPath",
+                 "WeatherLatitude", "WeatherLongitude", "WeatherTemperatureUnit", "WeatherRefreshMinutes" })
     {
         if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
         {
@@ -197,8 +201,68 @@ using (var scope = app.Services.CreateScope())
                 case "PhotoPath":
                     db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN PhotoPath TEXT NOT NULL DEFAULT ''");
                     break;
+                case "WeatherLatitude":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN WeatherLatitude REAL NOT NULL DEFAULT 38.9894");
+                    addedWidgetWeatherColumns = true;
+                    break;
+                case "WeatherLongitude":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN WeatherLongitude REAL NOT NULL DEFAULT -77.4794");
+                    addedWidgetWeatherColumns = true;
+                    break;
+                case "WeatherTemperatureUnit":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN WeatherTemperatureUnit TEXT NOT NULL DEFAULT 'fahrenheit'");
+                    addedWidgetWeatherColumns = true;
+                    break;
+                case "WeatherRefreshMinutes":
+                    db.Database.ExecuteSqlRaw("ALTER TABLE Widgets ADD COLUMN WeatherRefreshMinutes INTEGER NOT NULL DEFAULT 30");
+                    addedWidgetWeatherColumns = true;
+                    break;
             }
         }
+    }
+
+    // Weather display options. Defaults keep the widget's original look (current conditions plus a 5-day forecast).
+    foreach (var (column, definition) in new[]
+             {
+                 ("WeatherLocationName", "TEXT NOT NULL DEFAULT ''"),
+                 ("WeatherShowCurrent", "INTEGER NOT NULL DEFAULT 1"),
+                 ("WeatherShowFeelsLike", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowSummary", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowSunriseSunset", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowMoonPhase", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowWind", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowUvIndex", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowHumidity", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowPressure", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowVisibility", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherForecastMode", "TEXT NOT NULL DEFAULT 'Daily'"),
+                 ("WeatherForecastLength", "INTEGER NOT NULL DEFAULT 5"),
+                 ("WeatherShowPrecipitationAmount", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherShowPrecipitationChance", "INTEGER NOT NULL DEFAULT 0"),
+                 ("WeatherCondensed", "INTEGER NOT NULL DEFAULT 0"),
+             })
+    {
+        if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
+        {
+            // Column names and definitions are the constants above, never user input.
+#pragma warning disable EF1002
+            db.Database.ExecuteSqlRaw($"ALTER TABLE Widgets ADD COLUMN {column} {definition}");
+#pragma warning restore EF1002
+        }
+    }
+
+    // Weather used to be configured once in Settings. When the per-widget columns first appear,
+    // carry the old global values over so existing Weather widgets keep their location.
+    if (addedWidgetWeatherColumns)
+    {
+        db.Database.ExecuteSqlRaw("""
+            UPDATE Widgets SET
+                WeatherLatitude = (SELECT WeatherLatitude FROM Settings WHERE Id = 1),
+                WeatherLongitude = (SELECT WeatherLongitude FROM Settings WHERE Id = 1),
+                WeatherTemperatureUnit = (SELECT WeatherTemperatureUnit FROM Settings WHERE Id = 1),
+                WeatherRefreshMinutes = (SELECT WeatherRefreshMinutes FROM Settings WHERE Id = 1)
+            WHERE EXISTS (SELECT 1 FROM Settings WHERE Id = 1)
+            """);
     }
 
     var existingScreens = db.Screens.Include(screen => screen.Widgets).ToList();

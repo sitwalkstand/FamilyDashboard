@@ -16,7 +16,7 @@ public class DashboardStateService
 
     public IReadOnlyList<CalendarEventDto> Events { get; private set; } = [];
     public IReadOnlyList<CalendarLegendDto> Calendars { get; private set; } = [];
-    public WeatherDto? Weather { get; private set; }
+    private readonly Dictionary<WeatherLocationKey, WeatherDto> _weather = [];
     public IReadOnlyList<string> PhotoPaths { get; private set; } = [];
 
     public event Action? CalendarChanged;
@@ -44,9 +44,14 @@ public class DashboardStateService
         CalendarChanged?.Invoke();
     }
 
-    public void UpdateWeather(WeatherDto? weather)
+    public WeatherDto? GetWeather(WeatherLocationKey location)
     {
-        lock (_lock) { Weather = weather; }
+        lock (_lock) { return _weather.GetValueOrDefault(location); }
+    }
+
+    public void UpdateWeather(WeatherLocationKey location, WeatherDto weather)
+    {
+        lock (_lock) { _weather[location] = weather; }
         WeatherChanged?.Invoke();
     }
 

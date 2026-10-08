@@ -24,7 +24,6 @@
     <button class="admin-tab @(_activeTab == AdminTab.Dashboard ? "active" : "")" @onclick="() => _activeTab = AdminTab.Dashboard">Dashboard</button>
     <button class="admin-tab @(_activeTab == AdminTab.Calendar ? "active" : "")" @onclick="() => _activeTab = AdminTab.Calendar">Calendar</button>
     <button class="admin-tab @(_activeTab == AdminTab.Photos ? "active" : "")" @onclick="() => _activeTab = AdminTab.Photos">Photos</button>
-    <button class="admin-tab @(_activeTab == AdminTab.Weather ? "active" : "")" @onclick="() => _activeTab = AdminTab.Weather">Weather</button>
 </nav>
 
 @if (_activeTab == AdminTab.Dashboard)
@@ -330,31 +329,6 @@
 
 }
 
-@if (_activeTab == AdminTab.Weather)
-{
-<section class="feed-section settings-section">
-    <div class="feed-section-heading">
-        <div>
-            <h2>Weather settings</h2>
-            <p class="hint">Configure the location and refresh interval used by the Weather widget.</p>
-        </div>
-    </div>
-    <div class="weather-settings-grid">
-        <label>US ZIP code<input @bind="_weatherZipCode" placeholder="20850" /></label>
-        <button type="button" @onclick="LookupWeatherZip" disabled="@_isLookingUpWeather">@(_isLookingUpWeather ? "Looking up..." : "Use ZIP code")</button>
-        <label>Latitude<input type="number" step="0.0001" @bind="_weatherLatitude" /></label>
-        <label>Longitude<input type="number" step="0.0001" @bind="_weatherLongitude" /></label>
-        <label>Refresh minutes<input type="number" min="5" @bind="_weatherRefreshMinutes" /></label>
-        <label>Temperature unit<select @bind="_weatherTemperatureUnit"><option value="fahrenheit">Fahrenheit</option><option value="celsius">Celsius</option></select></label>
-    </div>
-    <button @onclick="SaveWeatherSettings">Save weather settings</button>
-    @if (!string.IsNullOrWhiteSpace(_weatherMessage))
-    {
-        <p class="upload-message">@_weatherMessage</p>
-    }
-</section>
-}
-
 <footer class="admin-footer">
     Version @BuildInfo.Version
     @if (BuildInfo.BuildDate is { } buildDate)
@@ -374,28 +348,11 @@
                 <button class="modal-close" aria-label="Close widget settings" @onclick="CloseWidgetModal">×</button>
             </div>
             <div class="modal-body">
-                <div class="modal-preview widget-@SelectedWidget.WidgetType.ToLowerInvariant()">
-                    <span class="canvas-block-icon">@WidgetIcon(SelectedWidget.WidgetType)</span>
-                    <strong>@SelectedWidget.WidgetType</strong>
-                    <small>Live preview block</small>
-                </div>
                 <div class="modal-settings">
-                    <label>Block type<select @bind="SelectedWidget.WidgetType">@foreach (var type in WidgetTypes) { <option value="@type">@type</option> }</select></label>
-                    <div class="property-section-title">Position</div>
-                    <div class="property-grid">
-                        <label>Column<input type="number" min="1" max="12" @bind="SelectedWidget.PositionX" /></label>
-                        <label>Row<input type="number" min="1" max="12" @bind="SelectedWidget.PositionY" /></label>
-                    </div>
-                    <div class="property-section-title">Size</div>
-                    <div class="property-grid">
-                        <label>Width<input type="number" min="1" max="12" @bind="SelectedWidget.Width" /></label>
-                        <label>Height<input type="number" min="1" max="12" @bind="SelectedWidget.Height" /></label>
-                    </div>
                     @if (SelectedWidget.WidgetType == "Calendar")
                     {
                         <label>Rolling month weeks<input type="number" min="1" max="6" @bind="SelectedWidget.CalendarWeeks" /></label>
                     }
-                    <label>Layer order<input type="number" min="0" @bind="SelectedWidget.DisplayOrder" /></label>
                     <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.Enabled" /> Visible on screen</label>
                     @if (SelectedWidget.WidgetType == "Calendar")
                     {
@@ -464,6 +421,93 @@
                             </div>
                         }
                     }
+                    else if (SelectedWidget.WidgetType == "Weather")
+                    {
+                        var showCurrent = SelectedWidget.WeatherShowCurrent;
+                        <div class="property-section-title">Location</div>
+                        <div class="weather-location-search">
+                            <input aria-label="Location" placeholder="Winchester, VA" @bind="_weatherLocationQuery" @bind:event="oninput" @onkeydown="OnWeatherLocationKeyDown" />
+                            <button type="button" @onclick="LookupWeatherLocation" disabled="@_isLookingUpWeather">@(_isLookingUpWeather ? "Searching..." : "Find")</button>
+                        </div>
+                        <div class="field-hint">
+                            Enter city, region or zip code. ie. <code>Syracuse, NY</code>, or <code>13215</code>
+                            @if (string.IsNullOrEmpty(SelectedWidget.WeatherLocationName))
+                            {
+                                <br />@($"Currently {SelectedWidget.WeatherLatitude:0.####}, {SelectedWidget.WeatherLongitude:0.####}")
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(_weatherMessage))
+                        {
+                            <div class="modal-note">@_weatherMessage</div>
+                        }
+                        <label>Temperature unit<select @bind="SelectedWidget.WeatherTemperatureUnit"><option value="fahrenheit">Fahrenheit</option><option value="celsius">Celsius</option></select></label>
+                        <label>Refresh minutes<input type="number" min="5" @bind="SelectedWidget.WeatherRefreshMinutes" /></label>
+
+                        <div class="property-section-title">Current conditions</div>
+                        <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowCurrent" /> Show the current conditions</label>
+                        <div class="weather-suboptions @(showCurrent ? "" : "disabled")">
+                            <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowFeelsLike" disabled="@(!showCurrent)" /> "Feels like" temperature <small>ie. "Feels like 72&deg;"</small></label>
+                            <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowSummary" disabled="@(!showCurrent)" /> Short text summary <small>ie. "Sunny this afternoon"</small></label>
+                        </div>
+
+                        <div class="property-section-title">
+                            Extra info
+                            <span class="select-links">
+                                <button type="button" @onclick="() => SetWeatherExtraInfo(SelectedWidget, true)">Select all</button> /
+                                <button type="button" @onclick="() => SetWeatherExtraInfo(SelectedWidget, false)">None</button>
+                            </span>
+                        </div>
+                        <div class="weather-extra-options">
+                            <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowSunriseSunset" /> <i class="fa-solid fa-sun" aria-hidden="true"></i> Sunrise/sunset</label>
+                            <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowHumidity" /> <i class="fa-solid fa-droplet" aria-hidden="true"></i> Humidity</label>
+                            <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowMoonPhase" /> <i class="fa-solid fa-moon" aria-hidden="true"></i> Moon phase</label>
+                            <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowPressure" /> <i class="fa-solid fa-gauge" aria-hidden="true"></i> Pressure</label>
+                            <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowWind" /> <i class="fa-solid fa-wind" aria-hidden="true"></i> Wind</label>
+                            <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowVisibility" /> <i class="fa-solid fa-eye" aria-hidden="true"></i> Visibility</label>
+                            <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowUvIndex" /> <i class="fa-solid fa-sun" aria-hidden="true"></i> UV Index</label>
+                        </div>
+
+                        <div class="property-section-title">Forecast</div>
+                        <div class="segmented-control" role="group" aria-label="Forecast">
+                            @foreach (var mode in WeatherForecastModes)
+                            {
+                                var selected = SelectedWidget.WeatherForecastMode == mode;
+                                <button type="button" class="@(selected ? "selected" : "")" aria-pressed="@selected" @onclick="() => SetWeatherForecastMode(SelectedWidget, mode)">
+                                    @if (selected)
+                                    {
+                                        <i class="fa-solid fa-check" aria-hidden="true"></i>
+                                    }
+                                    @mode
+                                </button>
+                            }
+                        </div>
+                        @if (SelectedWidget.WeatherForecastMode != "None")
+                        {
+                            var hourly = SelectedWidget.WeatherForecastMode == "Hourly";
+                            <div class="property-section-title">Forecast length</div>
+                            <div class="segmented-control" role="group" aria-label="Forecast length">
+                                @foreach (var length in WeatherForecastLengths(SelectedWidget.WeatherForecastMode))
+                                {
+                                    var selected = SelectedWidget.WeatherForecastLength == length;
+                                    <button type="button" class="@(selected ? "selected" : "")" aria-pressed="@selected" @onclick="() => SelectedWidget.WeatherForecastLength = length">
+                                        @if (selected)
+                                        {
+                                            <i class="fa-solid fa-check" aria-hidden="true"></i>
+                                        }
+                                        @(length)-@(hourly ? "Hour" : "Day")
+                                    </button>
+                                }
+                            </div>
+                        }
+
+                        <div class="property-section-title">Precipitation</div>
+                        <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowPrecipitationAmount" /> Show the amount of precipitation</label>
+                        <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherShowPrecipitationChance" /> Show the percent chance of precipitation</label>
+
+                        <div class="property-section-title">Condensed view</div>
+                        <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.WeatherCondensed" /> A smaller, more condensed weather widget</label>
+                    }
+                    <label>Layer order<input type="number" min="0" @bind="SelectedWidget.DisplayOrder" /></label>
                 </div>
             </div>
             <div class="modal-footer">
@@ -477,12 +521,13 @@
 }
 
 @code {
-    private enum AdminTab { Dashboard, Calendar, Photos, Weather }
+    private enum AdminTab { Dashboard, Calendar, Photos }
     private AdminTab _activeTab = AdminTab.Dashboard;
     private List<CalendarFeed> _feeds = [];
     private List<DashboardScreen> _screens = [];
     private CalendarFeed _newFeed = new();
     private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos"];
+    private static readonly string[] WeatherForecastModes = ["None", "Daily", "Hourly"];
     private static readonly ResizeHandle[] ResizeHandles = Enum.GetValues<ResizeHandle>();
     private int _selectedScreenId;
     private int _selectedWidgetId;
@@ -498,12 +543,8 @@
     private IReadOnlyList<IBrowserFile> _selectedPhotos = [];
     private bool _isUploadingPhotos;
     private string? _photoUploadMessage;
-    private double _weatherLatitude;
-    private double _weatherLongitude;
-    private int _weatherRefreshMinutes;
-    private string _weatherTemperatureUnit = "fahrenheit";
     private string? _weatherMessage;
-    private string _weatherZipCode = string.Empty;
+    private string _weatherLocationQuery = string.Empty;
     private bool _isLookingUpWeather;
     private int _draggedWidgetId;
     private int _dropColumn = 1;
@@ -529,7 +570,6 @@
         await LoadScreens();
         await LoadFeeds();
         await LoadGoogleCalendars();
-        await LoadWeatherSettings();
 
         // The OAuth callback redirects here with ?google=connected. Refresh right away so Google
         // events appear without waiting for CalendarRefreshWorker's next tick. Skip the prerender
@@ -646,6 +686,7 @@
     {
         _selectedWidgetId = id;
         _isWidgetModalOpen = true;
+        ResetWeatherLookup();
     }
 
     private void StartDragging(int id) => _draggedWidgetId = id;
@@ -794,6 +835,15 @@
 
     private async Task SaveWidgetFromModal(DashboardWidget widget)
     {
+        // Resolve a location that was typed but never looked up, so Save does what the user expects.
+        if (widget.WidgetType == "Weather"
+            && !string.IsNullOrWhiteSpace(_weatherLocationQuery)
+            && !string.Equals(_weatherLocationQuery.Trim(), widget.WeatherLocationName, StringComparison.OrdinalIgnoreCase)
+            && !await LookupWeatherLocation())
+        {
+            return;
+        }
+
         await SaveWidget(widget);
         _isWidgetModalOpen = false;
     }
@@ -941,11 +991,21 @@
         State.NotifyScreensChanged();
         _selectedWidgetId = addedWidgetId ?? 0;
         _isWidgetModalOpen = _selectedWidgetId != 0;
+        ResetWeatherLookup();
     }
 
     private async Task SaveWidget(DashboardWidget widget)
     {
         widget.CalendarWeeks = Math.Clamp(widget.CalendarWeeks, 1, 6);
+        widget.WeatherLatitude = Math.Clamp(widget.WeatherLatitude, -90, 90);
+        widget.WeatherLongitude = Math.Clamp(widget.WeatherLongitude, -180, 180);
+        widget.WeatherTemperatureUnit = WeatherLocationKey.NormalizeUnit(widget.WeatherTemperatureUnit);
+        widget.WeatherRefreshMinutes = Math.Max(5, widget.WeatherRefreshMinutes);
+        if (!WeatherForecastModes.Contains(widget.WeatherForecastMode))
+        {
+            widget.WeatherForecastMode = "Daily";
+        }
+        widget.WeatherForecastLength = NormalizeWeatherForecastLength(widget.WeatherForecastMode, widget.WeatherForecastLength);
         widget.PositionX = Math.Clamp(widget.PositionX, 1, 12);
         widget.PositionY = Math.Clamp(widget.PositionY, 1, 12);
         widget.Width = Math.Clamp(widget.Width, 1, 13 - widget.PositionX);
@@ -976,62 +1036,78 @@
         _feeds = await db.CalendarFeeds.ToListAsync();
     }
 
-    private async Task LoadWeatherSettings()
+    private void ResetWeatherLookup()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var settings = await db.Settings.SingleAsync();
-        _weatherLatitude = settings.WeatherLatitude;
-        _weatherLongitude = settings.WeatherLongitude;
-        _weatherRefreshMinutes = settings.WeatherRefreshMinutes;
-        _weatherTemperatureUnit = settings.WeatherTemperatureUnit;
+        _weatherLocationQuery = SelectedWidget?.WeatherLocationName ?? string.Empty;
+        _weatherMessage = null;
     }
 
-    private async Task SaveWeatherSettings()
+    private async Task OnWeatherLocationKeyDown(KeyboardEventArgs args)
     {
-        if (_weatherLatitude is < -90 or > 90 || _weatherLongitude is < -180 or > 180)
+        if (args.Key == "Enter")
         {
-            _weatherMessage = "Latitude must be between -90 and 90, and longitude between -180 and 180.";
-            return;
+            await LookupWeatherLocation();
         }
-
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var settings = await db.Settings.SingleAsync();
-        settings.WeatherLatitude = _weatherLatitude;
-        settings.WeatherLongitude = _weatherLongitude;
-        settings.WeatherRefreshMinutes = Math.Max(5, _weatherRefreshMinutes);
-        settings.WeatherTemperatureUnit = _weatherTemperatureUnit;
-        await db.SaveChangesAsync();
-        _weatherRefreshMinutes = settings.WeatherRefreshMinutes;
-        _weatherMessage = "Weather settings saved. Restart the app to apply the new refresh interval.";
     }
 
-    private async Task LookupWeatherZip()
+    private async Task<bool> LookupWeatherLocation()
     {
         _weatherMessage = null;
         _isLookingUpWeather = true;
         try
         {
-            var location = await WeatherService.FindLocationByZipAsync(_weatherZipCode);
+            var location = await WeatherService.FindLocationAsync(_weatherLocationQuery);
             if (location is null)
             {
-                _weatherMessage = "No US location was found for that ZIP code.";
-                return;
+                _weatherMessage = "No location was found. Try a city and state, such as \"Winchester, VA\".";
+                return false;
             }
 
-            _weatherLatitude = location.Latitude;
-            _weatherLongitude = location.Longitude;
-            var locationName = string.Join(", ", new[] { location.Name, location.Region, location.Country }
-                .Where(value => !string.IsNullOrWhiteSpace(value)));
-            _weatherMessage = $"Coordinates loaded for {locationName}. Save weather settings to apply them.";
+            if (SelectedWidget is null)
+            {
+                return false;
+            }
+
+            SelectedWidget.WeatherLatitude = Math.Round(location.Latitude, 4);
+            SelectedWidget.WeatherLongitude = Math.Round(location.Longitude, 4);
+            SelectedWidget.WeatherLocationName = location.DisplayName;
+            _weatherLocationQuery = location.DisplayName;
+            return true;
         }
         catch (HttpRequestException exception)
         {
-            _weatherMessage = $"ZIP lookup failed: {exception.Message}";
+            _weatherMessage = $"Location lookup failed: {exception.Message}";
+            return false;
         }
         finally
         {
             _isLookingUpWeather = false;
         }
+    }
+
+    private static void SetWeatherExtraInfo(DashboardWidget widget, bool show)
+    {
+        widget.WeatherShowSunriseSunset = show;
+        widget.WeatherShowMoonPhase = show;
+        widget.WeatherShowWind = show;
+        widget.WeatherShowUvIndex = show;
+        widget.WeatherShowHumidity = show;
+        widget.WeatherShowPressure = show;
+        widget.WeatherShowVisibility = show;
+    }
+
+    private static int[] WeatherForecastLengths(string mode) => mode == "Hourly" ? [4, 8, 12] : [3, 5, 7];
+
+    private static int NormalizeWeatherForecastLength(string mode, int length)
+    {
+        var lengths = WeatherForecastLengths(mode);
+        return lengths.Contains(length) ? length : lengths[1];
+    }
+
+    private static void SetWeatherForecastMode(DashboardWidget widget, string mode)
+    {
+        widget.WeatherForecastMode = mode;
+        widget.WeatherForecastLength = NormalizeWeatherForecastLength(mode, widget.WeatherForecastLength);
     }
 
     private async Task LoadGoogleCalendars()

@@ -37,7 +37,7 @@ Pushing to `main` triggers `.github/workflows/deploy.yml` on a self-hosted runne
 **Configuration and storage.**
 - `DataDirectory` holds `dashboard.db` (SQLite), `Keys/`, and the optional `google-oauth.json` (git-ignored; loaded as an extra config source with `Google:ClientId`/`Google:ClientSecret`). See `App_Data/google-oauth.example.json`. In Docker this is the `/data` volume.
 - `PhotoDirectory` is served as static files under `/photos` and scanned by `PhotoScanWorker`.
-- Weather location/unit/refresh are stored in the `Settings` table (editable in admin) and take precedence over the `Weather:*` keys in `appsettings.json`. Weather comes from Open-Meteo (no API key).
+- Weather location/unit/refresh are configured per Weather widget (columns on `Widgets`, edited in the widget's admin edit window). `WeatherRefreshWorker` fetches one forecast per distinct location/unit (`WeatherLocationKey`) from Open-Meteo (no API key). The old `Settings` weather columns are unmapped and only read once to seed existing widgets.
 - Calendar icons use Font Awesome Free, vendored in `wwwroot/lib/fontawesome`; the icon picker list comes from `Components/Widgets/fontawesome-free-icons.json`, compiled as an embedded resource.
 
 `/admin` is unauthenticated by design (trusted home LAN).
