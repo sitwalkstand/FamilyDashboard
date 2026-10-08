@@ -379,7 +379,6 @@
                     {
                         <label>Rolling month weeks<input type="number" min="1" max="6" @bind="SelectedWidget.CalendarWeeks" /></label>
                     }
-                    <label>Layer order<input type="number" min="0" @bind="SelectedWidget.DisplayOrder" /></label>
                     <label class="checkbox-label"><input type="checkbox" @bind="SelectedWidget.Enabled" /> Visible on screen</label>
                     @if (SelectedWidget.WidgetType == "Calendar")
                     {
@@ -448,6 +447,7 @@
                             </div>
                         }
                     }
+                    <label>Layer order<input type="number" min="0" @bind="SelectedWidget.DisplayOrder" /></label>
                 </div>
             </div>
             <div class="modal-footer">
