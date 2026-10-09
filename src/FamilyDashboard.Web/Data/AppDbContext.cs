@@ -19,5 +19,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .WithOne(widget => widget.Screen)
             .HasForeignKey(widget => widget.DashboardScreenId)
             .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<DashboardWidget>().ComplexProperty(widget => widget.PhotoSettings, settings =>
+        {
+            settings.ToJson();
+            settings.Property(photo => photo.Style).HasConversion<string>();
+        });
     }
 }

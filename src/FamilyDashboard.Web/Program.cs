@@ -9,6 +9,7 @@ using FamilyDashboard.Web.Workers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.StaticFiles;
 using System.Net;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,6 +61,12 @@ builder.Services.AddHttpClient<ICalendarService, CalendarService>(client =>
 builder.Services.AddScoped<IGoogleCalendarService, GoogleCalendarService>();
 builder.Services.AddHttpClient<IWeatherService, OpenMeteoWeatherService>();
 builder.Services.AddSingleton<IPhotoService, LocalFolderPhotoService>();
+builder.Services.AddSingleton(new SharedAlbumCacheLocation(Path.Combine(dataDir, "AlbumCache")));
+builder.Services.AddHttpClient<IAppleSharedAlbumClient, AppleSharedAlbumClient>(client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("FamilyDashboard/1.0 (self-hosted family photo dashboard)");
+});
+builder.Services.AddScoped<SharedAlbumCache>();
 
 // ---- Background refresh workers ----
 builder.Services.AddHostedService<CalendarRefreshWorker>();
@@ -221,6 +228,11 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
+    // Photo widget options are one JSON object. EF reads properties missing from it as zero/false
+    // rather than the class defaults, so existing widgets get the full default object. Braces are
+    // doubled because ExecuteSqlRaw formats the string.
+    const string defaultPhotoSettings = """'{{"AlbumUrl":"","Brightness":100,"ChangeIntervalSeconds":300,"ClickToRotate":false,"HiRes":false,"ShowMeta":false,"Style":"Crop","Transitions":true,"Vignette":false}}'""";
+
     // Weather display options. Defaults keep the widget's original look (current conditions plus a 5-day forecast).
     foreach (var (column, definition) in new[]
              {
@@ -240,6 +252,7 @@ using (var scope = app.Services.CreateScope())
                  ("WeatherShowPrecipitationAmount", "INTEGER NOT NULL DEFAULT 0"),
                  ("WeatherShowPrecipitationChance", "INTEGER NOT NULL DEFAULT 0"),
                  ("WeatherCondensed", "INTEGER NOT NULL DEFAULT 0"),
+                 ("PhotoSettings", $"TEXT NOT NULL DEFAULT {defaultPhotoSettings}"),
              })
     {
         if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
@@ -401,6 +414,25 @@ app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(photoDir),
     RequestPath = "/photos"
+});
+
+// Cached iCloud Shared Album photos. Only image types are served, so each folder's album.json
+// (which holds the album token) stays private. File names are content checksums, so they never change.
+var albumCache = app.Services.GetRequiredService<SharedAlbumCacheLocation>();
+Directory.CreateDirectory(albumCache.RootPath);
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(albumCache.RootPath),
+    RequestPath = SharedAlbumCacheLocation.RequestPath,
+    ContentTypeProvider = new FileExtensionContentTypeProvider(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        [".jpg"] = "image/jpeg",
+        [".jpeg"] = "image/jpeg",
+        [".png"] = "image/png",
+        [".webp"] = "image/webp",
+        [".gif"] = "image/gif"
+    }),
+    OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = "public, max-age=604800, immutable"
 });
 
 app.UseStaticFiles();

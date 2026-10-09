@@ -1,64 +1,232 @@
 @implements IDisposable
 @inject DashboardStateService State
-@inject IConfiguration Configuration
+@using FamilyDashboard.Web.Data.Entities
+@using FamilyDashboard.Web.Services.Photos
 
-@code {
-    [Parameter]
-    public string SelectedPhoto { get; set; } = string.Empty;
-}
-
-<div class="widget photo-widget">
-    @if (_currentPhoto is not null)
+<div class="widget photo-widget @StyleClass @(Settings.ClickToRotate ? "clickable" : "")" @onclick="OnClick">
+    @if (_current is not null)
     {
-        <img src="@_currentPhoto" alt="Family photo" />
+        <div class="photo-layer" style="@BrightnessStyle">
+            @* Cross-fade: the outgoing photo stays underneath while the new one fades in over it. *@
+            @if (Settings.Transitions && _previous is not null && _previous.Url != _current.Url)
+            {
+                @RenderSlide(_previous, fadeIn: false)
+            }
+            @RenderSlide(_current, fadeIn: Settings.Transitions)
+        </div>
+        @if (Settings.Vignette)
+        {
+            <div class="photo-vignette"></div>
+        }
+        @if (Settings.ShowMeta && MetaLine(_current) is { } meta)
+        {
+            <div class="photo-meta">
+                @if (!string.IsNullOrWhiteSpace(_current.Caption))
+                {
+                    <div class="photo-caption">@_current.Caption</div>
+                }
+                @if (meta.Length > 0)
+                {
+                    <div class="photo-details">@meta</div>
+                }
+            </div>
+        }
     }
     else
     {
-        <div class="loading">No photos found yet</div>
+        <div class="loading">@EmptyMessage</div>
     }
 </div>
 
 @code {
-    private string? _currentPhoto;
+    private const int MinIntervalSeconds = 5;
+
+    [Parameter, EditorRequired]
+    public DashboardWidget Widget { get; set; } = default!;
+
+    private sealed record Slide(string Url, string? Caption, string? Contributor, DateTimeOffset? DateCreated);
+
+    private List<Slide> _slides = [];
+    private Slide? _current;
+    private Slide? _previous;
     private int _index;
     private Timer? _slideTimer;
+    private int _intervalSeconds;
+    private string? _sourceKey;
+
+    private PhotoWidgetSettings Settings => Widget.PhotoSettings;
+
+    private bool UsesAlbum => SharedAlbumUrl.TryGetToken(Settings.AlbumUrl, out _);
+
+    private string StyleClass => Settings.Style switch
+    {
+        PhotoDisplayStyle.Fit => "style-fit",
+        PhotoDisplayStyle.FitAndBlur => "style-fit-and-blur",
+        PhotoDisplayStyle.Circle => "style-circle",
+        _ => "style-crop"
+    };
+
+    private string? BrightnessStyle => Settings.Brightness >= 100
+        ? null
+        : FormattableString.Invariant($"filter: brightness({Math.Clamp(Settings.Brightness, 0, 100) / 100.0:0.##});");
+
+    private string EmptyMessage
+    {
+        get
+        {
+            if (!UsesAlbum)
+            {
+                return "No photos found yet";
+            }
+
+            var status = State.GetAlbumStatus(Widget.Id);
+            return status?.LastError ?? (status?.LastSyncedUtc is null ? "Loading shared album..." : "This shared album has no photos");
+        }
+    }
+
+    private RenderFragment RenderSlide(Slide slide, bool fadeIn) =>
+        @<div class="photo-slide @(fadeIn ? "fade-in" : "")" @key="slide.Url">
+            @if (Settings.Style == PhotoDisplayStyle.FitAndBlur)
+            {
+                <img class="photo-backdrop" src="@slide.Url" alt="" aria-hidden="true" />
+            }
+            <img class="photo-image" src="@slide.Url" alt="@(slide.Caption ?? "Family photo")" />
+        </div>;
+
+    private static string? MetaLine(Slide slide)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(slide.Contributor))
+        {
+            parts.Add(slide.Contributor);
+        }
+        if (slide.DateCreated is { } created)
+        {
+            parts.Add(created.ToLocalTime().ToString("MMMM d, yyyy"));
+        }
+
+        return parts.Count == 0 && string.IsNullOrWhiteSpace(slide.Caption) ? null : string.Join(" · ", parts);
+    }
 
     protected override void OnInitialized()
     {
         State.PhotosChanged += OnPhotosChanged;
-        PickCurrent();
-
-        var intervalSeconds = Configuration.GetValue("Photos:SlideIntervalSeconds", 20);
-        _slideTimer = new Timer(_ =>
-        {
-            _index++;
-            PickCurrent();
-            InvokeAsync(StateHasChanged);
-        }, null, TimeSpan.FromSeconds(intervalSeconds), TimeSpan.FromSeconds(intervalSeconds));
+        State.AlbumChanged += OnAlbumChanged;
     }
 
-    private void OnPhotosChanged()
+    // The dashboard hands in a fresh widget object whenever admin saves a change, so pick up a new
+    // photo source or interval here.
+    protected override void OnParametersSet()
     {
-        _index = 0;
-        PickCurrent();
-        InvokeAsync(StateHasChanged);
+        var sourceKey = $"{Settings.AlbumUrl}|{Widget.PhotoPath}";
+        if (sourceKey != _sourceKey)
+        {
+            _sourceKey = sourceKey;
+            _previous = null;
+            LoadSlides(resetPosition: true);
+        }
+
+        var intervalSeconds = Math.Max(MinIntervalSeconds, Settings.ChangeIntervalSeconds);
+        if (intervalSeconds != _intervalSeconds || _slideTimer is null)
+        {
+            _intervalSeconds = intervalSeconds;
+            RestartTimer();
+        }
     }
 
-    private void PickCurrent()
+    private void LoadSlides(bool resetPosition)
     {
-        var photos = State.PhotoPaths;
-        if (!string.IsNullOrWhiteSpace(SelectedPhoto) && photos.Contains(SelectedPhoto, StringComparer.OrdinalIgnoreCase))
+        if (UsesAlbum)
         {
-            _currentPhoto = SelectedPhoto;
+            // Shuffled like the local folder is on each rescan, so the order differs from the album's.
+            _slides = State.GetAlbumPhotos(Widget.Id)
+                .Select(photo => new Slide(photo.Url, photo.Caption, photo.Contributor, photo.DateCreated))
+                .OrderBy(_ => Random.Shared.Next())
+                .ToList();
+        }
+        else
+        {
+            var paths = State.PhotoPaths;
+            _slides = !string.IsNullOrWhiteSpace(Widget.PhotoPath) && paths.Contains(Widget.PhotoPath, StringComparer.OrdinalIgnoreCase)
+                ? [new Slide(Widget.PhotoPath, null, null, null)]
+                : paths.Select(path => new Slide(path, null, null, null)).ToList();
+        }
+
+        // Keep showing the current photo through a refresh if it is still there.
+        var keep = resetPosition || _current is null ? -1 : _slides.FindIndex(slide => slide.Url == _current.Url);
+        _index = Math.Max(0, keep);
+        _current = _slides.Count == 0 ? null : _slides[_index];
+    }
+
+    private void Advance()
+    {
+        if (_slides.Count == 0)
+        {
             return;
         }
 
-        _currentPhoto = photos.Count == 0 ? null : photos[_index % photos.Count];
+        _index = (_index + 1) % _slides.Count;
+        if (_slides[_index].Url == _current?.Url)
+        {
+            return;
+        }
+
+        _previous = _current;
+        _current = _slides[_index];
+    }
+
+    private void RestartTimer()
+    {
+        var interval = TimeSpan.FromSeconds(_intervalSeconds);
+        _slideTimer ??= new Timer(_ => InvokeAsync(() =>
+        {
+            Advance();
+            StateHasChanged();
+        }));
+        _slideTimer.Change(interval, interval);
+    }
+
+    private void OnClick()
+    {
+        if (!Settings.ClickToRotate)
+        {
+            return;
+        }
+
+        Advance();
+        RestartTimer();
+    }
+
+    private void OnPhotosChanged() => InvokeAsync(() =>
+    {
+        if (!UsesAlbum)
+        {
+            LoadSlides(resetPosition: true);
+            StateHasChanged();
+        }
+    });
+
+    private void OnAlbumChanged(int widgetId)
+    {
+        if (widgetId != Widget.Id)
+        {
+            return;
+        }
+
+        InvokeAsync(() =>
+        {
+            if (UsesAlbum)
+            {
+                LoadSlides(resetPosition: false);
+                StateHasChanged();
+            }
+        });
     }
 
     public void Dispose()
     {
         State.PhotosChanged -= OnPhotosChanged;
+        State.AlbumChanged -= OnAlbumChanged;
         _slideTimer?.Dispose();
     }
 }

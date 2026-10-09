@@ -427,6 +427,36 @@
                     }
                     else if (SelectedWidget.WidgetType == "Photos")
                     {
+                        var photoSettings = SelectedWidget.PhotoSettings;
+                        <div class="property-section-title">Photo source</div>
+                        <div class="segmented-control" role="group" aria-label="Photo source">
+                            @foreach (var (isAlbum, label) in PhotoSources)
+                            {
+                                var selected = _photoSourceIsAlbum == isAlbum;
+                                <button type="button" class="@(selected ? "selected" : "")" aria-pressed="@selected" @onclick="() => SetPhotoSource(isAlbum)">
+                                    @if (selected)
+                                    {
+                                        <i class="fa-solid fa-check" aria-hidden="true"></i>
+                                    }
+                                    @label
+                                </button>
+                            }
+                        </div>
+                        @if (_photoSourceIsAlbum)
+                        {
+                            <label>Shared album link<input placeholder="https://www.icloud.com/sharedalbum/#B0aBcDeFgHiJkL" @bind="photoSettings.AlbumUrl" @bind:event="oninput" @bind:after="() => _albumUrlMessage = null" /></label>
+                            <div class="field-hint">In Photos, open the shared album, turn on <strong>Public Website</strong>, and paste its link here. Photos are cached, so the dashboard keeps showing them if iCloud is unreachable.</div>
+                            @if (!string.IsNullOrWhiteSpace(_albumUrlMessage))
+                            {
+                                <div class="modal-note">@_albumUrlMessage</div>
+                            }
+                            else if (photoSettings.AlbumUrl == _albumUrlAtOpen && State.GetAlbumStatus(SelectedWidget.Id) is { } albumStatus)
+                            {
+                                <div class="modal-note">@AlbumStatusText(albumStatus)</div>
+                            }
+                        }
+                        else
+                        {
                         <div class="property-section-title">Photo to display</div>
                         @if (State.PhotoPaths.Count == 0)
                         {
@@ -450,6 +480,48 @@
                                 }
                             </div>
                         }
+                        }
+
+                        <div class="property-section-title">Change photo every</div>
+                        <div class="segmented-control" role="group" aria-label="Change photo every">
+                            @foreach (var minutes in PhotoWidgetSettings.ChangeIntervalMinuteOptions)
+                            {
+                                var selected = photoSettings.ChangeIntervalSeconds == minutes * 60;
+                                <button type="button" class="@(selected ? "selected" : "")" aria-pressed="@selected" @onclick="() => photoSettings.ChangeIntervalSeconds = minutes * 60">
+                                    @if (selected)
+                                    {
+                                        <i class="fa-solid fa-check" aria-hidden="true"></i>
+                                    }
+                                    @minutes min
+                                </button>
+                            }
+                        </div>
+
+                        <div class="property-section-title">Style</div>
+                        <div class="segmented-control" role="group" aria-label="Photo style">
+                            @foreach (var (style, label) in PhotoStyles)
+                            {
+                                var selected = photoSettings.Style == style;
+                                <button type="button" class="@(selected ? "selected" : "")" aria-pressed="@selected" @onclick="() => photoSettings.Style = style">
+                                    @if (selected)
+                                    {
+                                        <i class="fa-solid fa-check" aria-hidden="true"></i>
+                                    }
+                                    @label
+                                </button>
+                            }
+                        </div>
+
+                        <label>Brightness: @photoSettings.Brightness%<input type="range" min="0" max="100" step="5" @bind="photoSettings.Brightness" @bind:event="oninput" /></label>
+
+                        <div class="property-section-title">Options</div>
+                        <label class="checkbox-label"><input type="checkbox" @bind="photoSettings.Transitions" /> Cross-fade between photos</label>
+                        <label class="checkbox-label"><input type="checkbox" @bind="photoSettings.Vignette" /> Darken the edges (vignette)</label>
+                        <label class="checkbox-label"><input type="checkbox" @bind="photoSettings.ClickToRotate" /> Tap or click to show the next photo</label>
+                        <div class="weather-suboptions @(_photoSourceIsAlbum ? "" : "disabled")">
+                            <label class="checkbox-label"><input type="checkbox" @bind="photoSettings.ShowMeta" disabled="@(!_photoSourceIsAlbum)" /> Show caption, contributor and date <small>shared albums only</small></label>
+                            <label class="checkbox-label"><input type="checkbox" @bind="photoSettings.HiRes" disabled="@(!_photoSourceIsAlbum)" /> High resolution <small>largest size iCloud offers</small></label>
+                        </div>
                     }
                     else if (SelectedWidget.WidgetType == "Weather")
                     {
@@ -574,6 +646,17 @@
     private bool _isUploadingPhotos;
     private string? _photoUploadMessage;
     private string? _weatherMessage;
+    private bool _photoSourceIsAlbum;
+    private string? _albumUrlMessage;
+    private string _albumUrlAtOpen = string.Empty;
+    private static readonly (bool IsAlbum, string Label)[] PhotoSources = [(false, "Photo folder"), (true, "iCloud Shared Album")];
+    private static readonly (PhotoDisplayStyle Style, string Label)[] PhotoStyles =
+    [
+        (PhotoDisplayStyle.Crop, "Crop"),
+        (PhotoDisplayStyle.Fit, "Fit"),
+        (PhotoDisplayStyle.FitAndBlur, "Fit & blur"),
+        (PhotoDisplayStyle.Circle, "Circle")
+    ];
     private string _weatherLocationQuery = string.Empty;
     private bool _isLookingUpWeather;
     private DotNetObjectReference<Admin>? _editorReference;
@@ -631,6 +714,7 @@
         {
             _editorReference = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("dashboardEditor.attach", _editorReference);
+            State.AlbumChanged += OnAlbumChanged;
         }
 
         // autofocus is ignored on inputs inserted after page load, so focus the rename box explicitly.
@@ -735,6 +819,7 @@
         _selectedWidgetId = id;
         _isWidgetModalOpen = true;
         ResetWeatherLookup();
+        ResetPhotoSource();
     }
 
     // Called by dashboard-editor.js when a block is dropped, resized or nudged with the keyboard.
@@ -814,6 +899,11 @@
             && !string.IsNullOrWhiteSpace(_weatherLocationQuery)
             && !string.Equals(_weatherLocationQuery.Trim(), widget.WeatherLocationName, StringComparison.OrdinalIgnoreCase)
             && !await LookupWeatherLocation())
+        {
+            return;
+        }
+
+        if (widget.WidgetType == "Photos" && !ApplyPhotoSource(widget))
         {
             return;
         }
@@ -900,8 +990,18 @@
         return $"{width}:{height}";
     }
 
+    // Shows a shared album's sync result in the open widget editor as soon as the worker finishes.
+    private void OnAlbumChanged(int widgetId)
+    {
+        if (_isWidgetModalOpen && widgetId == _selectedWidgetId)
+        {
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        State.AlbumChanged -= OnAlbumChanged;
         if (_editorReference is null)
         {
             return;
@@ -1024,11 +1124,22 @@
         _selectedWidgetId = addedWidgetId ?? 0;
         _isWidgetModalOpen = _selectedWidgetId != 0;
         ResetWeatherLookup();
+        ResetPhotoSource();
     }
 
     private async Task SaveWidget(DashboardWidget widget)
     {
         widget.CalendarWeeks = Math.Clamp(widget.CalendarWeeks, 1, 6);
+        var photo = widget.PhotoSettings;
+        photo.Brightness = Math.Clamp(photo.Brightness, 0, 100);
+        if (photo.ChangeIntervalSeconds % 60 != 0 || !PhotoWidgetSettings.ChangeIntervalMinuteOptions.Contains(photo.ChangeIntervalSeconds / 60))
+        {
+            photo.ChangeIntervalSeconds = 300;
+        }
+        if (!Enum.IsDefined(photo.Style))
+        {
+            photo.Style = PhotoDisplayStyle.Crop;
+        }
         widget.WeatherLatitude = Math.Clamp(widget.WeatherLatitude, -90, 90);
         widget.WeatherLongitude = Math.Clamp(widget.WeatherLongitude, -180, 180);
         widget.WeatherTemperatureUnit = WeatherLocationKey.NormalizeUnit(widget.WeatherTemperatureUnit);
@@ -1072,6 +1183,51 @@
     {
         _weatherLocationQuery = SelectedWidget?.WeatherLocationName ?? string.Empty;
         _weatherMessage = null;
+    }
+
+    private void ResetPhotoSource()
+    {
+        _albumUrlAtOpen = SelectedWidget?.PhotoSettings.AlbumUrl ?? string.Empty;
+        _photoSourceIsAlbum = !string.IsNullOrWhiteSpace(_albumUrlAtOpen);
+        _albumUrlMessage = null;
+    }
+
+    private void SetPhotoSource(bool isAlbum)
+    {
+        _photoSourceIsAlbum = isAlbum;
+        _albumUrlMessage = null;
+    }
+
+    // Checks the album link before saving and stores it in one canonical form; choosing the photo
+    // folder clears it. Returns false (with a message) when the link is not a shared album link.
+    private bool ApplyPhotoSource(DashboardWidget widget)
+    {
+        var settings = widget.PhotoSettings;
+        if (!_photoSourceIsAlbum)
+        {
+            settings.AlbumUrl = string.Empty;
+            return true;
+        }
+
+        if (!SharedAlbumUrl.TryGetToken(settings.AlbumUrl, out var token))
+        {
+            _albumUrlMessage = string.IsNullOrWhiteSpace(settings.AlbumUrl)
+                ? "Paste the shared album's Public Website link, or switch the source back to Photo folder."
+                : "That isn't an iCloud shared album link. It should look like https://www.icloud.com/sharedalbum/#B0aBcDeFgHiJkL.";
+            return false;
+        }
+
+        settings.AlbumUrl = $"https://www.icloud.com/sharedalbum/#{token}";
+        _albumUrlAtOpen = settings.AlbumUrl;
+        return true;
+    }
+
+    private static string AlbumStatusText(AlbumSyncStatus status)
+    {
+        var album = string.IsNullOrWhiteSpace(status.AlbumName) ? "Shared album" : $"\"{status.AlbumName}\"";
+        var synced = status.LastSyncedUtc is { } syncedUtc ? $", last synced {syncedUtc.ToLocalTime():MMM d h:mm tt}" : "";
+        var summary = $"{album}: {status.PhotoCount} photo(s) cached{synced}.";
+        return status.LastError is null ? summary : $"{summary} Last sync problem: {status.LastError}";
     }
 
     private async Task OnWeatherLocationKeyDown(KeyboardEventArgs args)
