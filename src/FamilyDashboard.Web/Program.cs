@@ -251,6 +251,12 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
+    var screenColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('Screens')").ToList();
+    if (!screenColumns.Contains("AspectRatio", StringComparer.OrdinalIgnoreCase))
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Screens ADD COLUMN AspectRatio TEXT NOT NULL DEFAULT '16:9'");
+    }
+
     // Weather used to be configured once in Settings. When the per-widget columns first appear,
     // carry the old global values over so existing Weather widgets keep their location.
     if (addedWidgetWeatherColumns)
