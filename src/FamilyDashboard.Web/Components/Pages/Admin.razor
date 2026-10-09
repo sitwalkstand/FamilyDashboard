@@ -36,6 +36,14 @@
             <p class="hint">Select a screen, add blocks, then adjust the selected block's position and size. The canvas updates as you edit.</p>
         </div>
         <div class="editor-toolbar-actions">
+            <label class="rotation-setting" title="Use this when the monitor is mounted on its side but the kiosk still outputs a landscape picture.">Kiosk rotation
+                <select id="display-rotation" @bind="_displayRotation" @bind:after="SaveDisplayRotation">
+                    @foreach (var (degrees, label) in DisplayRotations)
+                    {
+                        <option value="@degrees">@label</option>
+                    }
+                </select>
+            </label>
             <button @onclick="AddScreen">New screen</button>
             <button class="secondary-button" @onclick="SaveAllScreens">Save all</button>
         </div>
@@ -573,14 +581,24 @@
     // Display shapes offered for the layout preview, as "width:height".
     private static readonly (string Value, string Label)[] AspectRatios =
     [
+        ("9:16", "Portrait (9:16)"),
+        ("10:16", "Portrait (10:16)"),
+        ("3:4", "Portrait (3:4)"),
         ("16:9", "Widescreen (16:9)"),
         ("16:10", "Widescreen (16:10)"),
         ("4:3", "Standard (4:3)"),
-        ("3:2", "Tablet (3:2)"),
-        ("9:16", "Portrait (9:16)"),
-        ("10:16", "Portrait (10:16)"),
-        ("3:4", "Portrait (3:4)")
+        ("3:2", "Tablet (3:2)")
     ];
+
+    private static readonly (int Degrees, string Label)[] DisplayRotations =
+    [
+        (0, "No rotation"),
+        (90, "Rotate 90° clockwise"),
+        (270, "Rotate 90° counter-clockwise"),
+        (180, "Upside down")
+    ];
+
+    private int _displayRotation;
 
     private DashboardScreen? SelectedScreen => _screens.FirstOrDefault(screen => screen.Id == _selectedScreenId);
     private DashboardWidget? SelectedWidget => SelectedScreen?.Widgets.FirstOrDefault(widget => widget.Id == _selectedWidgetId);
@@ -591,6 +609,7 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadScreens();
+        await LoadDisplayRotation();
         await LoadFeeds();
         await LoadGoogleCalendars();
 
@@ -872,7 +891,7 @@
         var parts = (value ?? string.Empty).Split(':');
         return parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height) && width > 0 && height > 0
             ? (width, height)
-            : (16, 9);
+            : (9, 16);
     }
 
     private static string AspectRatioLabel(string? value)
@@ -921,6 +940,31 @@
         db.Screens.Add(screen);
         await db.SaveChangesAsync();
         await LoadScreens();
+        State.NotifyScreensChanged();
+    }
+
+    private async Task LoadDisplayRotation()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _displayRotation = await db.Settings.Select(settings => settings.DisplayRotation).FirstOrDefaultAsync();
+    }
+
+    private async Task SaveDisplayRotation()
+    {
+        if (!DisplayRotations.Any(rotation => rotation.Degrees == _displayRotation))
+        {
+            _displayRotation = 0;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var settings = await db.Settings.FirstOrDefaultAsync();
+        if (settings is null)
+        {
+            return;
+        }
+
+        settings.DisplayRotation = _displayRotation;
+        await db.SaveChangesAsync();
         State.NotifyScreensChanged();
     }
 

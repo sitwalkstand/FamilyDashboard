@@ -15,4 +15,8 @@ public class DashboardSettings
     public bool ShowClock { get; set; } = true;
 
     public string TimeZoneId { get; set; } = TimeZoneInfo.Local.Id;
+
+    // Degrees clockwise to rotate the dashboard (0, 90, 180 or 270), for a monitor mounted on its
+    // side while the kiosk's OS still outputs a landscape picture.
+    public int DisplayRotation { get; set; }
 }

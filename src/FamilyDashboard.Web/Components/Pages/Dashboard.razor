@@ -9,12 +9,12 @@
 
 @if (_screens.Count == 0)
 {
-    <div class="dashboard-stage screen-empty"><div class="loading">No enabled screens configured</div></div>
+    <div class="dashboard-stage screen-empty @RotationClass"><div class="loading">No enabled screens configured</div></div>
 }
 else
 {
     var screen = _screens[_screenIndex];
-    <div class="dashboard-stage screen-@_screenIndex">
+    <div class="dashboard-stage screen-@_screenIndex @RotationClass">
         <div class="configured-screen">
             @foreach (var widget in screen.Widgets.Where(widget => widget.Enabled).OrderBy(widget => widget.DisplayOrder))
             {
@@ -43,6 +43,7 @@ else
 @code {
     private List<DashboardScreen> _screens = [];
     private int _screenIndex;
+    private int _rotation;
     private int _elapsedSeconds;
     private Timer? _screenTimer;
 
@@ -61,9 +62,12 @@ else
         StateHasChanged();
     });
 
+    private string RotationClass => _rotation is 90 or 180 or 270 ? $"rotate-{_rotation}" : string.Empty;
+
     private async Task LoadScreens()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
+        _rotation = await db.Settings.Select(settings => settings.DisplayRotation).FirstOrDefaultAsync();
         _screens = await db.Screens
             .Where(screen => screen.Enabled)
             .Include(screen => screen.Widgets)

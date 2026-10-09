@@ -199,6 +199,22 @@ html, body {
     line-height: 1.5;
 }
 
+/* Kiosk rotation: the stage is laid out at the monitor's upright size, then turned to fit the
+   landscape picture the OS sends. */
+.dashboard-stage.rotate-90,
+.dashboard-stage.rotate-270 {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vh;
+    height: 100vw;
+    transform-origin: top left;
+}
+
+.dashboard-stage.rotate-90 { transform: rotate(90deg) translateY(-100%); }
+.dashboard-stage.rotate-270 { transform: rotate(-90deg) translateX(-100%); }
+.dashboard-stage.rotate-180 { transform: rotate(180deg); }
+
 .dashboard-stage::after {
     content: "";
     position: absolute;
@@ -661,6 +677,14 @@ html, body {
 
 .editor-toolbar h2 {
     margin-bottom: .35rem;
+}
+
+.rotation-setting {
+    display: flex;
+    gap: .4rem;
+    align-items: center;
+    color: #71807b;
+    font-size: .8rem;
 }
 
 .editor-toolbar-actions {
