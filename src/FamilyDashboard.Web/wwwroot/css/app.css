@@ -859,15 +859,22 @@ html, body {
     font-size: .75rem;
 }
 
+/* Sized to the screen's display shape, with spacing scaled like the kiosk dashboard's. */
+.canvas-frame {
+    container-type: inline-size;
+    width: min(100%, calc(72vh * var(--aspect-w, 16) / var(--aspect-h, 9)));
+    margin-inline: auto;
+}
+
 .screen-canvas {
     position: relative;
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     grid-template-rows: repeat(12, minmax(0, 1fr));
-    flex: 1;
-    min-height: 520px;
-    gap: 5px;
-    padding: 8px;
+    width: 100%;
+    aspect-ratio: var(--aspect-w, 16) / var(--aspect-h, 9);
+    gap: 1.8cqw;
+    padding: 2.5cqw;
     border: 8px solid #26333a;
     border-radius: 4px;
     background: #182028;
@@ -876,24 +883,13 @@ html, body {
     touch-action: none;
 }
 
-.canvas-grid-lines {
-    position: absolute;
-    inset: 8px;
-    pointer-events: none;
-    background-image: linear-gradient(rgba(255, 255, 255, .045) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, .045) 1px, transparent 1px);
-    background-size: calc(100% / 12) calc(100% / 12);
-}
-
-.canvas-drop-cell {
+.canvas-cell {
     z-index: 0;
     min-width: 0;
     min-height: 0;
-    border: 1px solid transparent;
-}
-
-.canvas-drop-cell:hover {
-    border-color: rgba(231, 187, 100, .6);
-    background: rgba(231, 187, 100, .12);
+    border-radius: 2px;
+    background: rgba(255, 255, 255, .04);
+    pointer-events: none;
 }
 
 .canvas-block {
@@ -919,8 +915,38 @@ html, body {
     cursor: grabbing;
 }
 
+.canvas-block:focus-visible {
+    outline: 3px solid #e7bb64;
+    outline-offset: 2px;
+}
+
+.canvas-block.is-moving,
+.canvas-block.is-resizing {
+    z-index: 10;
+    border-color: #e7bb64;
+    box-shadow: 0 0 0 3px rgba(231, 187, 100, .35), 0 10px 24px rgba(0, 0, 0, .45);
+}
+
+.canvas-block.is-moving {
+    cursor: grabbing;
+    opacity: .9;
+}
+
+.canvas-layout-tooltip {
+    position: fixed;
+    z-index: 100;
+    padding: .25rem .5rem;
+    border-radius: 3px;
+    background: #26333a;
+    color: #fff;
+    font-size: .75rem;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
 .widget-hover-actions {
     position: absolute;
+    z-index: 5;
     top: .35rem;
     right: .35rem;
     display: flex;
@@ -954,32 +980,33 @@ html, body {
 .resize-topright,
 .resize-bottomleft,
 .resize-bottomright {
-    width: .85rem;
-    height: .85rem;
+    z-index: 4;
+    width: 1.1rem;
+    height: 1.1rem;
 }
 
 .resize-top,
 .resize-bottom {
-    right: .7rem;
-    left: .7rem;
-    height: .5rem;
+    right: 1.1rem;
+    left: 1.1rem;
+    height: .75rem;
 }
 
 .resize-left,
 .resize-right {
-    top: .7rem;
-    bottom: .7rem;
-    width: .5rem;
+    top: 1.1rem;
+    bottom: 1.1rem;
+    width: .75rem;
 }
 
-.resize-topleft { top: -.2rem; left: -.2rem; cursor: nwse-resize; }
-.resize-top { top: -.2rem; cursor: ns-resize; }
-.resize-topright { top: -.2rem; right: -.2rem; cursor: nesw-resize; }
-.resize-left { left: -.2rem; cursor: ew-resize; }
-.resize-right { right: -.2rem; cursor: ew-resize; }
-.resize-bottomleft { bottom: -.2rem; left: -.2rem; cursor: nesw-resize; }
-.resize-bottom { bottom: -.2rem; cursor: ns-resize; }
-.resize-bottomright { right: -.2rem; bottom: -.2rem; cursor: nwse-resize; }
+.resize-topleft { top: 0; left: 0; cursor: nwse-resize; }
+.resize-top { top: 0; cursor: ns-resize; }
+.resize-topright { top: 0; right: 0; cursor: nesw-resize; }
+.resize-left { left: 0; cursor: ew-resize; }
+.resize-right { right: 0; cursor: ew-resize; }
+.resize-bottomleft { bottom: 0; left: 0; cursor: nesw-resize; }
+.resize-bottom { bottom: 0; cursor: ns-resize; }
+.resize-bottomright { right: 0; bottom: 0; cursor: nwse-resize; }
 
 .resize-topleft::after,
 .resize-topright::after,
@@ -987,7 +1014,7 @@ html, body {
 .resize-bottomright::after {
     content: "";
     position: absolute;
-    inset: .2rem;
+    inset: .25rem;
     border: 2px solid rgba(255, 255, 255, .9);
 }
 
@@ -1098,6 +1125,30 @@ html, body {
     margin: 0;
     font-size: .8rem;
     line-height: 1.45;
+}
+
+.layout-panel {
+    align-content: start;
+    justify-items: stretch;
+    color: #26333a;
+    text-align: left;
+}
+
+.layout-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
+}
+
+.layout-fields label {
+    display: grid;
+    gap: .2rem;
+    color: #71807b;
+    font-size: .75rem;
+}
+
+.layout-fields input {
+    width: 100%;
 }
 
 .feed-section {
@@ -1832,10 +1883,6 @@ html, body {
 
     .property-panel {
         border-top: 1px solid #dce2df;
-    }
-
-    .screen-canvas {
-        min-height: 420px;
     }
 
     .screen-editor-header {

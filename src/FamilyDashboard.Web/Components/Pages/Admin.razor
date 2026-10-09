@@ -16,6 +16,7 @@
 @inject IJSRuntime JS
 @inject IPhotoService PhotoService
 @inject IWeatherService WeatherService
+@implements IAsyncDisposable
 
 <div class="admin-page">
 <h1>Dashboard admin</h1>
@@ -80,6 +81,14 @@
                         <label>Name<input @bind="SelectedScreen.Name" /></label>
                         <label>Rotation order<input type="number" min="0" @bind="SelectedScreen.DisplayOrder" /></label>
                         <label>Display seconds<input type="number" min="5" @bind="SelectedScreen.DurationSeconds" /></label>
+                        <label>Display shape
+                            <select id="screen-aspect" @bind="SelectedScreen.AspectRatio" @bind:after="() => SaveScreen(SelectedScreen)">
+                                @foreach (var (value, label) in AspectRatios)
+                                {
+                                    <option value="@value">@label</option>
+                                }
+                            </select>
+                        </label>
                         <label class="checkbox-label"><input type="checkbox" @bind="SelectedScreen.Enabled" /> Include in rotation</label>
                         <button @onclick="() => SaveScreen(SelectedScreen)">Save screen</button>
                         <button class="danger-button" @onclick="() => DeleteScreen(SelectedScreen.Id)">Delete screen</button>
@@ -89,33 +98,31 @@
                 <main class="canvas-area">
                     <div class="canvas-heading">
                         <div><strong>@SelectedScreen.Name</strong><span>Live preview</span></div>
-                        <span class="canvas-size">12 x 12 layout</span>
+                        <span class="canvas-size">12 x 12 grid · @AspectRatioLabel(SelectedScreen.AspectRatio)</span>
                     </div>
-                    <div class="screen-canvas" @ref="_canvasElement" @ondragover:preventDefault
-                        @onpointermove="HandleResize" @onpointerup="FinishResizing" @onpointercancel="FinishResizing">
-                        <div class="canvas-grid-lines"></div>
+                    @{ var (aspectWidth, aspectHeight) = ParseAspectRatio(SelectedScreen.AspectRatio); }
+                    <div class="canvas-frame" style="--aspect-w: @aspectWidth; --aspect-h: @aspectHeight;">
+                    <div class="screen-canvas">
                         @for (var row = 1; row <= 12; row++)
                         {
                             @for (var column = 1; column <= 12; column++)
                             {
-                                var dropColumn = column;
-                                var dropRow = row;
-                                <span class="canvas-drop-cell" style="grid-column:@dropColumn;grid-row:@dropRow"
-                                      @ondragover:preventDefault
-                                      @ondragenter="() => SetDropCell(dropColumn, dropRow)"
-                                      @ondrop="() => DropWidget(dropColumn, dropRow)"></span>
+                                <span class="canvas-cell" style="grid-column:@column;grid-row:@row"></span>
                             }
                         }
                         @foreach (var widget in SelectedScreen.Widgets.Where(widget => widget.Enabled).OrderBy(widget => widget.DisplayOrder))
                         {
                             <div class="canvas-block widget-@widget.WidgetType.ToLowerInvariant() @(widget.Id == _selectedWidgetId ? "selected" : "")"
                                  style="@WidgetStyle(widget)"
-                                 draggable="true"
+                                 data-widget-id="@widget.Id"
+                                 data-x="@widget.PositionX"
+                                 data-y="@widget.PositionY"
+                                 data-w="@widget.Width"
+                                 data-h="@widget.Height"
                                  role="button"
                                  tabindex="0"
-                                 @onclick="() => SelectWidget(widget.Id)"
-                                 @ondragstart="() => StartDragging(widget.Id)"
-                                 @ondragend="StopDragging">
+                                 aria-label="@($"{widget.WidgetType} widget at column {widget.PositionX}, row {widget.PositionY}, {widget.Width} by {widget.Height}")"
+                                 @onclick="() => SelectWidget(widget.Id)">
                                 <span class="canvas-block-icon">@WidgetIcon(widget.WidgetType)</span>
                                 <span>@widget.WidgetType</span>
                                 <small>@widget.Width x @widget.Height</small>
@@ -126,21 +133,36 @@
                                   @foreach (var handle in ResizeHandles)
                                   {
                                     <span class="widget-resize-handle resize-@handle.ToString().ToLowerInvariant()" title="Resize widget"
-                                        @onpointerdown="eventArgs => StartResizing(widget, handle, eventArgs)"
-                                        @onpointerdown:preventDefault="true"
-                                        @onpointerdown:stopPropagation="true"
                                         @onclick:stopPropagation="true"></span>
                                   }
                             </div>
                         }
                     </div>
+                    </div>
                 </main>
 
-                <aside class="editor-tip-panel">
-                    <span class="property-empty-icon">✦</span>
-                    <strong>Live canvas</strong>
-                    <p>Click any block to open its settings. Changes are previewed immediately and saved from the dialog.</p>
-                </aside>
+                @if (SelectedWidget is { } layoutWidget)
+                {
+                    <aside class="editor-tip-panel layout-panel">
+                        <strong>@layoutWidget.WidgetType layout</strong>
+                        <div class="layout-fields">
+                            <label>Column<input id="layout-x" type="number" min="1" max="12" @bind="layoutWidget.PositionX" @bind:after="() => SaveWidget(layoutWidget)" /></label>
+                            <label>Row<input id="layout-y" type="number" min="1" max="12" @bind="layoutWidget.PositionY" @bind:after="() => SaveWidget(layoutWidget)" /></label>
+                            <label>Width<input id="layout-w" type="number" min="1" max="@(13 - layoutWidget.PositionX)" @bind="layoutWidget.Width" @bind:after="() => SaveWidget(layoutWidget)" /></label>
+                            <label>Height<input id="layout-h" type="number" min="1" max="@(13 - layoutWidget.PositionY)" @bind="layoutWidget.Height" @bind:after="() => SaveWidget(layoutWidget)" /></label>
+                        </div>
+                        <p>Drag a block to move it, or drag its edges to resize. With a block selected, arrow keys move it and Shift + arrow keys resize it.</p>
+                        <button type="button" class="secondary-button" @onclick="() => OpenWidgetModal(layoutWidget.Id)">Widget settings</button>
+                    </aside>
+                }
+                else
+                {
+                    <aside class="editor-tip-panel">
+                        <span class="property-empty-icon">✦</span>
+                        <strong>Live canvas</strong>
+                        <p>Drag a block to move it, or drag its edges to resize. Select a block to set its exact position and size.</p>
+                    </aside>
+                }
             </div>
         }
     }
@@ -546,18 +568,19 @@
     private string? _weatherMessage;
     private string _weatherLocationQuery = string.Empty;
     private bool _isLookingUpWeather;
-    private int _draggedWidgetId;
-    private int _dropColumn = 1;
-    private int _dropRow = 1;
-    private DashboardWidget? _resizingWidget;
-    private int _resizeStartWidth;
-    private int _resizeStartHeight;
-    private double _resizeStartPointerX;
-    private double _resizeStartPointerY;
-    private double _resizeGridStepX = 40;
-    private double _resizeGridStepY = 40;
-    private ResizeHandle _resizeHandleDirection;
-    private ElementReference _canvasElement;
+    private DotNetObjectReference<Admin>? _editorReference;
+
+    // Display shapes offered for the layout preview, as "width:height".
+    private static readonly (string Value, string Label)[] AspectRatios =
+    [
+        ("16:9", "Widescreen (16:9)"),
+        ("16:10", "Widescreen (16:10)"),
+        ("4:3", "Standard (4:3)"),
+        ("3:2", "Tablet (3:2)"),
+        ("9:16", "Portrait (9:16)"),
+        ("10:16", "Portrait (10:16)"),
+        ("3:4", "Portrait (3:4)")
+    ];
 
     private DashboardScreen? SelectedScreen => _screens.FirstOrDefault(screen => screen.Id == _selectedScreenId);
     private DashboardWidget? SelectedWidget => SelectedScreen?.Widgets.FirstOrDefault(widget => widget.Id == _selectedWidgetId);
@@ -585,6 +608,12 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender)
+        {
+            _editorReference = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("dashboardEditor.attach", _editorReference);
+        }
+
         // autofocus is ignored on inputs inserted after page load, so focus the rename box explicitly.
         if (_focusGoogleCalendarNameInput)
         {
@@ -689,97 +718,23 @@
         ResetWeatherLookup();
     }
 
-    private void StartDragging(int id) => _draggedWidgetId = id;
-
-    private void StopDragging() => _draggedWidgetId = 0;
-
-    private void SetDropCell(int column, int row)
+    // Called by dashboard-editor.js when a block is dropped, resized or nudged with the keyboard.
+    [JSInvokable]
+    public async Task CommitWidgetLayout(int widgetId, int positionX, int positionY, int width, int height)
     {
-        _dropColumn = column;
-        _dropRow = row;
-    }
-
-    private async Task DropWidget(int column, int row)
-    {
-        var widget = SelectedScreen?.Widgets.FirstOrDefault(item => item.Id == _draggedWidgetId);
+        var widget = SelectedScreen?.Widgets.FirstOrDefault(item => item.Id == widgetId);
         if (widget is null)
         {
             return;
         }
 
-        var width = Math.Clamp(widget.Width, 1, 12);
-        var height = Math.Clamp(widget.Height, 1, 12);
-        widget.PositionX = Math.Clamp(column, 1, 13 - width);
-        widget.PositionY = Math.Clamp(row, 1, 13 - height);
-        await SaveWidget(widget);
-        _draggedWidgetId = 0;
-    }
-
-    private async Task StartResizing(DashboardWidget widget, ResizeHandle handle, PointerEventArgs args)
-    {
-        _resizingWidget = widget;
         _selectedWidgetId = widget.Id;
-        _resizeStartWidth = widget.Width;
-        _resizeStartHeight = widget.Height;
-        _resizeStartPointerX = args.ClientX;
-        _resizeStartPointerY = args.ClientY;
-        _resizeHandleDirection = handle;
-        var gridMetrics = await JS.InvokeAsync<double[]>("getDashboardGridMetrics", _canvasElement);
-        if (gridMetrics.Length >= 2)
-        {
-            _resizeGridStepX = gridMetrics[0];
-            _resizeGridStepY = gridMetrics[1];
-        }
-        await JS.InvokeVoidAsync("captureDashboardPointer", _canvasElement, args.PointerId);
-    }
-
-    private void HandleResize(PointerEventArgs args)
-    {
-        if (_resizingWidget is null)
-        {
-            return;
-        }
-
-        // Use the full pointer delta from the original press so the final size
-        // remains stable even when the pointer leaves the resize grip.
-        var widthDelta = (int)Math.Round((args.ClientX - _resizeStartPointerX) / _resizeGridStepX);
-        var heightDelta = (int)Math.Round((args.ClientY - _resizeStartPointerY) / _resizeGridStepY);
-        var rightEdge = _resizingWidget.PositionX + _resizeStartWidth - 1;
-        var bottomEdge = _resizingWidget.PositionY + _resizeStartHeight - 1;
-
-        if (_resizeHandleDirection is ResizeHandle.Left or ResizeHandle.TopLeft or ResizeHandle.BottomLeft)
-        {
-            var newPositionX = Math.Clamp(_resizingWidget.PositionX + widthDelta, 1, rightEdge);
-            _resizingWidget.PositionX = newPositionX;
-            _resizingWidget.Width = rightEdge - newPositionX + 1;
-        }
-        else if (_resizeHandleDirection is ResizeHandle.Right or ResizeHandle.TopRight or ResizeHandle.BottomRight)
-        {
-            _resizingWidget.Width = Math.Clamp(_resizeStartWidth + widthDelta, 1, 13 - _resizingWidget.PositionX);
-        }
-
-        if (_resizeHandleDirection is ResizeHandle.Top or ResizeHandle.TopLeft or ResizeHandle.TopRight)
-        {
-            var newPositionY = Math.Clamp(_resizingWidget.PositionY + heightDelta, 1, bottomEdge);
-            _resizingWidget.PositionY = newPositionY;
-            _resizingWidget.Height = bottomEdge - newPositionY + 1;
-        }
-        else if (_resizeHandleDirection is ResizeHandle.Bottom or ResizeHandle.BottomLeft or ResizeHandle.BottomRight)
-        {
-            _resizingWidget.Height = Math.Clamp(_resizeStartHeight + heightDelta, 1, 13 - _resizingWidget.PositionY);
-        }
-    }
-
-    private async Task FinishResizing()
-    {
-        if (_resizingWidget is null)
-        {
-            return;
-        }
-
-        var widget = _resizingWidget;
-        _resizingWidget = null;
+        widget.PositionX = positionX;
+        widget.PositionY = positionY;
+        widget.Width = width;
+        widget.Height = height;
         await SaveWidget(widget);
+        StateHasChanged();
     }
 
     private enum ResizeHandle
@@ -912,6 +867,38 @@
         _ => "□"
     };
 
+    private static (int Width, int Height) ParseAspectRatio(string? value)
+    {
+        var parts = (value ?? string.Empty).Split(':');
+        return parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height) && width > 0 && height > 0
+            ? (width, height)
+            : (16, 9);
+    }
+
+    private static string AspectRatioLabel(string? value)
+    {
+        var (width, height) = ParseAspectRatio(value);
+        return $"{width}:{height}";
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_editorReference is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("dashboardEditor.detach");
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit is already gone, and the page's listeners with it.
+        }
+        _editorReference.Dispose();
+    }
+
     private static string WidgetStyle(DashboardWidget widget)
     {
         var x = Math.Clamp(widget.PositionX, 1, 12);
@@ -941,6 +928,7 @@
     {
         screen.Name = string.IsNullOrWhiteSpace(screen.Name) ? "Screen" : screen.Name.Trim();
         screen.DurationSeconds = Math.Max(5, screen.DurationSeconds);
+        screen.AspectRatio = AspectRatioLabel(screen.AspectRatio);
         await using var db = await DbFactory.CreateDbContextAsync();
         db.Screens.Update(screen);
         await db.SaveChangesAsync();
