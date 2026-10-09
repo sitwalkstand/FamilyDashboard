@@ -254,7 +254,15 @@ using (var scope = app.Services.CreateScope())
     var screenColumns = db.Database.SqlQueryRaw<string>("SELECT name AS Value FROM pragma_table_info('Screens')").ToList();
     if (!screenColumns.Contains("AspectRatio", StringComparer.OrdinalIgnoreCase))
     {
-        db.Database.ExecuteSqlRaw("ALTER TABLE Screens ADD COLUMN AspectRatio TEXT NOT NULL DEFAULT '16:9'");
+        db.Database.ExecuteSqlRaw("ALTER TABLE Screens ADD COLUMN AspectRatio TEXT NOT NULL DEFAULT '9:16'");
+    }
+
+    if (!settingsColumns.Contains("DisplayRotation", StringComparer.OrdinalIgnoreCase))
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE Settings ADD COLUMN DisplayRotation INTEGER NOT NULL DEFAULT 0");
+        // The kiosk is portrait, so this upgrade also moves screens off the old 16:9 default.
+        // It runs once, with the column, so a later deliberate 16:9 choice is kept.
+        db.Database.ExecuteSqlRaw("UPDATE Screens SET AspectRatio = '9:16' WHERE AspectRatio = '16:9'");
     }
 
     // Weather used to be configured once in Settings. When the per-widget columns first appear,

@@ -9,7 +9,7 @@ public class DashboardScreen
     public bool Enabled { get; set; } = true;
 
     // Shape of the kiosk display as "width:height". Only used to draw the admin layout preview.
-    public string AspectRatio { get; set; } = "16:9";
+    public string AspectRatio { get; set; } = "9:16";
 
     public List<DashboardWidget> Widgets { get; set; } = [];
 }
