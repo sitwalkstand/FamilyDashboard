@@ -98,9 +98,9 @@ public class PhotoScanWorker(
             var albumWidgets = new List<(DashboardWidget Widget, AlbumKey Key)>();
             foreach (var widget in photoWidgets)
             {
-                if (SharedAlbumUrl.TryGetToken(widget.PhotoSettings.AlbumUrl, out var token))
+                if (SharedAlbumUrl.TryParse(widget.PhotoSettings.AlbumUrl, out var link))
                 {
-                    albumWidgets.Add((widget, new AlbumKey(token, widget.PhotoSettings.HiRes)));
+                    albumWidgets.Add((widget, new AlbumKey(link, widget.PhotoSettings.HiRes)));
                 }
             }
             var albumWidgetIds = albumWidgets.Select(item => item.Widget.Id).ToHashSet();
@@ -153,7 +153,7 @@ public class PhotoScanWorker(
         var token = SharedAlbumUrl.Mask(key.Token);
         try
         {
-            var result = await cache.SyncAsync(widget.Id, key.Token, key.HiRes, stoppingToken);
+            var result = await cache.SyncAsync(widget.Id, key.Link, key.HiRes, stoppingToken);
             state.UpdateAlbum(widget.Id, result.Photos, new AlbumSyncStatus(result.AlbumName, result.Photos.Count, DateTimeOffset.UtcNow,
                 result.Failed > 0 ? $"{result.Failed} photo(s) could not be downloaded; they will be retried." : null));
 
@@ -180,7 +180,10 @@ public class PhotoScanWorker(
         }
     }
 
-    private sealed record AlbumKey(string Token, bool HiRes);
+    private sealed record AlbumKey(SharedAlbumLink Link, bool HiRes)
+    {
+        public string Token => Link.Token;
+    }
 
     private sealed record AlbumSyncState(AlbumKey Key, DateTime LastAttemptUtc);
 }

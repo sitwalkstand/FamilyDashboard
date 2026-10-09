@@ -444,8 +444,8 @@
                         </div>
                         @if (_photoSourceIsAlbum)
                         {
-                            <label>Shared album link<input placeholder="https://www.icloud.com/sharedalbum/#B0aBcDeFgHiJkL" @bind="photoSettings.AlbumUrl" @bind:event="oninput" @bind:after="() => _albumUrlMessage = null" /></label>
-                            <div class="field-hint">In Photos, open the shared album, turn on <strong>Public Website</strong>, and paste its link here. Photos are cached, so the dashboard keeps showing them if iCloud is unreachable.</div>
+                            <label>Shared album link<input placeholder="https://photos.icloud.com/shared/album/031AbCdEfGhIjKlMnOpQrStUv/" @bind="photoSettings.AlbumUrl" @bind:event="oninput" @bind:after="() => _albumUrlMessage = null" /></label>
+                            <div class="field-hint">Paste the album's public link from Photos: a <code>photos.icloud.com/shared/album/…</code> link, or an older <code>icloud.com/sharedalbum/#…</code> Public Website link. Photos are cached, so the dashboard keeps showing them if iCloud is unreachable.</div>
                             @if (!string.IsNullOrWhiteSpace(_albumUrlMessage))
                             {
                                 <div class="modal-note">@_albumUrlMessage</div>
@@ -1209,15 +1209,15 @@
             return true;
         }
 
-        if (!SharedAlbumUrl.TryGetToken(settings.AlbumUrl, out var token))
+        if (!SharedAlbumUrl.TryParse(settings.AlbumUrl, out var link))
         {
             _albumUrlMessage = string.IsNullOrWhiteSpace(settings.AlbumUrl)
-                ? "Paste the shared album's Public Website link, or switch the source back to Photo folder."
-                : "That isn't an iCloud shared album link. It should look like https://www.icloud.com/sharedalbum/#B0aBcDeFgHiJkL.";
+                ? "Paste the shared album's public link, or switch the source back to Photo folder."
+                : "That isn't an iCloud shared album link. It should look like https://photos.icloud.com/shared/album/031AbCdEfGhIjKlMnOpQrStUv/ or https://www.icloud.com/sharedalbum/#B0aBcDeFgHiJkL.";
             return false;
         }
 
-        settings.AlbumUrl = $"https://www.icloud.com/sharedalbum/#{token}";
+        settings.AlbumUrl = link.CanonicalUrl;
         _albumUrlAtOpen = settings.AlbumUrl;
         return true;
     }

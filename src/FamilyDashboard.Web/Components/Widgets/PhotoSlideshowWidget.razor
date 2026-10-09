@@ -56,7 +56,7 @@
 
     private PhotoWidgetSettings Settings => Widget.PhotoSettings;
 
-    private bool UsesAlbum => SharedAlbumUrl.TryGetToken(Settings.AlbumUrl, out _);
+    private bool UsesAlbum => SharedAlbumUrl.TryParse(Settings.AlbumUrl, out _);
 
     private string StyleClass => Settings.Style switch
     {

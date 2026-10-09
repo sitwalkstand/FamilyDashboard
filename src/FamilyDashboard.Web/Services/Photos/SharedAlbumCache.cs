@@ -18,7 +18,7 @@ public record AlbumSyncStatus(string? AlbumName, int PhotoCount, DateTimeOffset?
 public record AlbumSyncResult(string? AlbumName, IReadOnlyList<AlbumPhoto> Photos, int Added, int Removed, int Failed, bool Unchanged);
 
 /// <summary>
-/// Mirrors an iCloud Shared Album into &lt;DataDirectory&gt;/AlbumCache/&lt;widgetId&gt;, so the dashboard
+/// Mirrors a shared iCloud album into &lt;DataDirectory&gt;/AlbumCache/&lt;widgetId&gt;, so the dashboard
 /// only ever shows files from disk and keeps working while iCloud is unreachable. A failed sync
 /// throws before anything is deleted, so the existing cache is never lost to an outage.
 /// </summary>
@@ -31,7 +31,6 @@ public class SharedAlbumCache(
     // The "medium" pick: the smallest derivative that is still sharp on a kiosk screen. Shared
     // albums usually hold only a ~350px thumbnail and a ~2000px+ image, which then means the latter.
     private const int MediumMinLongEdge = 1280;
-    private static readonly string[] DisplayableExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
     private static readonly JsonSerializerOptions ManifestJsonOptions = new() { WriteIndented = true };
 
     /// <summary>Cached photos for a widget, if the cache holds this album. Reads disk only.</summary>
@@ -48,15 +47,19 @@ public class SharedAlbumCache(
         return ToAlbumPhotos(widgetId, manifest.Photos);
     }
 
-    public async Task<AlbumSyncResult> SyncAsync(int widgetId, string token, bool hiRes, CancellationToken cancellationToken)
+    public async Task<AlbumSyncResult> SyncAsync(int widgetId, SharedAlbumLink album, bool hiRes, CancellationToken cancellationToken)
     {
-        var stream = await client.GetStreamAsync(token, cancellationToken);
+        var token = album.Token;
+        var stream = await client.GetStreamAsync(album, cancellationToken);
         var directory = WidgetDirectory(widgetId);
         Directory.CreateDirectory(directory);
 
         var manifest = ReadManifest(widgetId);
         var previous = manifest?.Token == token
-            ? manifest.Photos.Where(photo => File.Exists(Path.Combine(directory, photo.FileName))).ToDictionary(photo => photo.Checksum, StringComparer.OrdinalIgnoreCase)
+            ? manifest.Photos
+                .Where(photo => File.Exists(Path.Combine(directory, photo.FileName)))
+                .GroupBy(photo => photo.PhotoGuid, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase)
             : [];
 
         var ctagMatches = manifest is not null && manifest.Token == token && stream.Ctag is not null && manifest.Ctag == stream.Ctag;
@@ -74,37 +77,50 @@ public class SharedAlbumCache(
                 : "iCloud returned no photos for this album yet. It will be tried again later.");
         }
 
-        var wanted = stream.Photos
-            .Select(photo => (Photo: photo, Derivative: PickDerivative(photo.Derivatives, hiRes)))
-            .ToList();
-        var missing = wanted.Where(item => !previous.ContainsKey(item.Derivative.Checksum)).ToList();
-
-        var downloaded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var failed = 0;
-        if (missing.Count > 0)
+        var photos = new List<CachedAlbumPhoto>();
+        var toDownload = new List<(SharedAlbumPhoto Photo, SharedAlbumDerivative Preferred)>();
+        foreach (var photo in stream.Photos)
         {
-            var urls = await client.GetAssetUrlsAsync(token, missing.Select(item => item.Photo.PhotoGuid).ToList(), cancellationToken);
-            foreach (var (photo, derivative) in missing)
+            var preferred = PickDerivative(photo.Derivatives, hiRes);
+            // Reuse the cached file while it is the one chosen for this preference (possibly a fallback
+            // size, when the preferred one could not be shown) and is still part of the photo.
+            if (previous.TryGetValue(photo.PhotoGuid, out var cached)
+                && (cached.PreferredChecksum ?? cached.Checksum) == preferred.Checksum
+                && photo.Derivatives.Any(derivative => derivative.Checksum == cached.Checksum))
             {
-                var fileName = await TryDownloadAsync(directory, photo, derivative, urls, cancellationToken);
-                if (fileName is null)
+                photos.Add(cached with { Caption = photo.Caption, Contributor = photo.Contributor, DateCreated = photo.DateCreated });
+            }
+            else
+            {
+                toDownload.Add((photo, preferred));
+            }
+        }
+
+        var added = 0;
+        var failed = 0;
+        if (toDownload.Count > 0)
+        {
+            // Shared Collections list download URLs with the photos; legacy streams need a lookup.
+            var needUrls = toDownload
+                .Where(item => item.Photo.Derivatives.Any(derivative => derivative.DownloadUrl is null))
+                .Select(item => item.Photo.PhotoGuid)
+                .ToList();
+            var urls = needUrls.Count > 0
+                ? await client.GetAssetUrlsAsync(album, needUrls, cancellationToken)
+                : new Dictionary<string, Uri>();
+
+            foreach (var (photo, preferred) in toDownload)
+            {
+                var downloaded = await DownloadPhotoAsync(directory, photo, preferred, urls, cancellationToken);
+                if (downloaded is null)
                 {
                     failed++;
                 }
                 else
                 {
-                    downloaded[derivative.Checksum] = fileName;
+                    photos.Add(downloaded);
+                    added++;
                 }
-            }
-        }
-
-        var photos = new List<CachedAlbumPhoto>();
-        foreach (var (photo, derivative) in wanted)
-        {
-            var fileName = previous.TryGetValue(derivative.Checksum, out var cached) ? cached.FileName : downloaded.GetValueOrDefault(derivative.Checksum);
-            if (fileName is not null)
-            {
-                photos.Add(new CachedAlbumPhoto(fileName, photo.PhotoGuid, derivative.Checksum, photo.Caption, photo.Contributor, photo.DateCreated));
             }
         }
 
@@ -120,6 +136,14 @@ public class SharedAlbumCache(
             }
         }
 
+        // Keep the album's order rather than "cached first, downloaded after".
+        var order = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var photo in stream.Photos)
+        {
+            order.TryAdd(photo.PhotoGuid, order.Count);
+        }
+        photos = photos.OrderBy(photo => order.GetValueOrDefault(photo.PhotoGuid)).ToList();
+
         WriteManifest(widgetId, new AlbumCacheManifest
         {
             Token = token,
@@ -131,7 +155,7 @@ public class SharedAlbumCache(
             Photos = photos
         });
 
-        return new AlbumSyncResult(stream.StreamName, ToAlbumPhotos(widgetId, photos), downloaded.Count, removed, failed, Unchanged: false);
+        return new AlbumSyncResult(stream.StreamName, ToAlbumPhotos(widgetId, photos), added, removed, failed, Unchanged: false);
     }
 
     /// <summary>Deletes cache folders of widgets that no longer use a shared album.</summary>
@@ -161,53 +185,103 @@ public class SharedAlbumCache(
             : bySize.FirstOrDefault(derivative => derivative.LongEdge >= MediumMinLongEdge) ?? bySize[^1];
     }
 
-    private async Task<string?> TryDownloadAsync(
+    // Tries the preferred size first, then the others from largest down, but only moves on when a
+    // file turns out to be a format browsers cannot show (e.g. a real HEIC original). A network or
+    // size failure stops there, so the next sync retries the preferred size.
+    private async Task<CachedAlbumPhoto?> DownloadPhotoAsync(
         string directory,
         SharedAlbumPhoto photo,
-        SharedAlbumDerivative derivative,
+        SharedAlbumDerivative preferred,
         IReadOnlyDictionary<string, Uri> urls,
         CancellationToken cancellationToken)
     {
-        if (!urls.TryGetValue(derivative.Checksum, out var url))
-        {
-            logger.LogWarning("iCloud returned no download URL for photo {PhotoGuid}", photo.PhotoGuid);
-            return null;
-        }
+        var candidates = photo.Derivatives
+            .Where(derivative => derivative != preferred)
+            .OrderByDescending(derivative => derivative.LongEdge)
+            .Prepend(preferred);
 
-        var extension = Path.GetExtension(url.AbsolutePath).ToLowerInvariant();
-        if (!DisplayableExtensions.Contains(extension))
+        foreach (var derivative in candidates)
         {
-            logger.LogWarning("Skipping photo {PhotoGuid}: browsers cannot show {Extension} files", photo.PhotoGuid, extension);
-            return null;
-        }
-
-        // Checksums are hex, so they make safe, unique file names that change when the image does.
-        var fileName = $"{derivative.Checksum}{extension}";
-        var target = Path.Combine(directory, fileName);
-        var partial = target + ".part";
-        try
-        {
-            await using (var output = File.Create(partial))
+            var url = derivative.DownloadUrl ?? urls.GetValueOrDefault(derivative.Checksum);
+            if (url is null)
             {
-                await client.DownloadAsync(url, output, cancellationToken);
+                logger.LogWarning("iCloud returned no download URL for photo {PhotoGuid}", photo.PhotoGuid);
+                return null;
             }
 
-            var size = new FileInfo(partial).Length;
-            if (derivative.FileSize is { } expected && expected != size)
+            var partial = Path.Combine(directory, $"{derivative.Checksum}.part");
+            try
             {
-                throw new SharedAlbumException($"expected {expected} bytes but received {size}");
-            }
+                await using (var output = File.Create(partial))
+                {
+                    await client.DownloadAsync(url, output, cancellationToken);
+                }
 
-            File.Move(partial, target, overwrite: true);
-            return fileName;
+                var size = new FileInfo(partial).Length;
+                if (derivative.FileSize is { } expected && expected != size)
+                {
+                    throw new SharedAlbumException($"expected {expected} bytes but received {size}");
+                }
+
+                // Go by the bytes, not the declared type: a live album listed JPEG files as HEIC.
+                var extension = SniffImageExtension(partial);
+                if (extension is null)
+                {
+                    File.Delete(partial);
+                    logger.LogInformation("Photo {PhotoGuid}: its {Width}x{Height} version is not a format browsers can show; trying another size",
+                        photo.PhotoGuid, derivative.Width, derivative.Height);
+                    continue;
+                }
+
+                // Checksums are hex, so they make safe, unique file names that change when the image does.
+                var fileName = $"{derivative.Checksum}{extension}";
+                File.Move(partial, Path.Combine(directory, fileName), overwrite: true);
+                return new CachedAlbumPhoto(fileName, photo.PhotoGuid, derivative.Checksum, photo.Caption, photo.Contributor, photo.DateCreated)
+                {
+                    PreferredChecksum = preferred.Checksum
+                };
+            }
+            catch (Exception exception) when (exception is SharedAlbumException or HttpRequestException or IOException
+                                                  || exception is TaskCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                logger.LogWarning("Could not download photo {PhotoGuid}: {Message}", photo.PhotoGuid, exception.Message);
+                File.Delete(partial);
+                return null;
+            }
         }
-        catch (Exception exception) when (exception is SharedAlbumException or HttpRequestException or IOException
-                                              || exception is TaskCanceledException && !cancellationToken.IsCancellationRequested)
+
+        logger.LogWarning("Skipping photo {PhotoGuid}: none of its sizes is a format browsers can show", photo.PhotoGuid);
+        return null;
+    }
+
+    private static string? SniffImageExtension(string path)
+    {
+        Span<byte> buffer = stackalloc byte[12];
+        int read;
+        using (var file = File.OpenRead(path))
         {
-            logger.LogWarning("Could not download photo {PhotoGuid}: {Message}", photo.PhotoGuid, exception.Message);
-            File.Delete(partial);
-            return null;
+            read = file.ReadAtLeast(buffer, buffer.Length, throwOnEndOfStream: false);
         }
+
+        ReadOnlySpan<byte> header = buffer[..read];
+        if (header.StartsWith((ReadOnlySpan<byte>)[0xFF, 0xD8, 0xFF]))
+        {
+            return ".jpg";
+        }
+        if (header.StartsWith((ReadOnlySpan<byte>)[0x89, 0x50, 0x4E, 0x47]))
+        {
+            return ".png";
+        }
+        if (header.StartsWith("GIF8"u8))
+        {
+            return ".gif";
+        }
+        if (header.Length >= 12 && header[..4].SequenceEqual("RIFF"u8) && header[8..12].SequenceEqual("WEBP"u8))
+        {
+            return ".webp";
+        }
+
+        return null;
     }
 
     private static IReadOnlyList<AlbumPhoto> ToAlbumPhotos(int widgetId, IEnumerable<CachedAlbumPhoto> photos) =>
@@ -259,5 +333,9 @@ public class SharedAlbumCache(
         public List<CachedAlbumPhoto> Photos { get; set; } = [];
     }
 
-    private sealed record CachedAlbumPhoto(string FileName, string PhotoGuid, string Checksum, string? Caption, string? Contributor, DateTimeOffset? DateCreated);
+    private sealed record CachedAlbumPhoto(string FileName, string PhotoGuid, string Checksum, string? Caption, string? Contributor, DateTimeOffset? DateCreated)
+    {
+        /// <summary>The size that was wanted when this file was chosen; differs from Checksum after a fallback.</summary>
+        public string? PreferredChecksum { get; init; }
+    }
 }
