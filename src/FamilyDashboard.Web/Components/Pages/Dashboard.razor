@@ -99,7 +99,9 @@ else
         var y = Math.Clamp(widget.PositionY, 1, 12);
         var width = Math.Clamp(widget.Width, 1, 13 - x);
         var height = Math.Clamp(widget.Height, 1, 13 - y);
-        return $"grid-column: {x} / span {width}; grid-row: {y} / span {height};";
+        // z-index gives each widget its own stacking context, so layer order holds even when
+        // widget content (e.g. the photo's transform animation) would otherwise paint above siblings.
+        return $"grid-column: {x} / span {width}; grid-row: {y} / span {height}; z-index: {Math.Max(0, widget.DisplayOrder)};";
     }
 
     public void Dispose()
