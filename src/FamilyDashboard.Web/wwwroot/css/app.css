@@ -506,11 +506,11 @@ html, body {
 
 .calendar-event {
     overflow: hidden;
-    margin: 0 -.05rem .12rem;
-    padding-left: .18rem;
-    border-left: 2px solid var(--event-color, #62b9c5);
+    margin: 0 -.05rem .2rem;
+    padding-left: .25rem;
+    border-left: 3px solid var(--event-color, #62b9c5);
     color: var(--event-color, #f0f0f0);
-    font-size: .85rem;
+    font-size: 1.1rem;
     line-height: 1.2;
     white-space: normal;
     overflow-wrap: anywhere;
