@@ -429,8 +429,8 @@ html, body {
 .calendar-legend {
     display: flex;
     flex-wrap: wrap;
-    gap: .15rem .55rem;
-    max-height: 3rem;
+    gap: .2rem .8rem;
+    max-height: 3.75rem;
     overflow: auto;
     padding: .2rem .15rem;
     border-bottom: 1px solid #262626;
@@ -439,10 +439,10 @@ html, body {
 .calendar-legend-item {
     display: inline-flex;
     align-items: center;
-    gap: .18rem;
+    gap: .3rem;
     min-width: 0;
     color: var(--event-color, #f0f0f0);
-    font-size: .8rem;
+    font-size: 1.05rem;
     line-height: 1.15;
     white-space: nowrap;
 }
