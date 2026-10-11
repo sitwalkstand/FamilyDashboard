@@ -527,6 +527,89 @@ html, body {
     color: inherit;
 }
 
+.school-menu-widget {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: .35rem .45rem .45rem;
+    background: #050505;
+    text-shadow: none;
+}
+
+.school-menu-header {
+    padding: 0 .2rem .3rem;
+    border-bottom: 1px solid #262626;
+}
+
+.school-menu-header h2 {
+    margin: 0;
+    font-size: clamp(.9rem, 1.5vw, 1.15rem);
+    font-weight: 600;
+}
+
+.school-menu-header i {
+    margin-right: .3rem;
+    color: #e7bb64;
+}
+
+.school-menu-days {
+    display: grid;
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    align-content: start;
+    gap: .6rem;
+    overflow: hidden;
+    padding-top: .5rem;
+}
+
+.school-menu-day {
+    min-width: 0;
+    padding: .4rem .5rem;
+    border-left: 3px solid #3b3b3b;
+}
+
+.school-menu-day.is-today {
+    border-left-color: #e7bb64;
+}
+
+.school-menu-day h3 {
+    margin: 0 0 .3rem;
+    color: #f4f4f4;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.school-menu-day.is-today h3 {
+    color: #e7bb64;
+}
+
+.school-menu-day ul {
+    display: grid;
+    gap: .12rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 1.1rem;
+    line-height: 1.25;
+    overflow-wrap: break-word;
+}
+
+.school-menu-entree {
+    color: #f4f4f4;
+    font-weight: 600;
+}
+
+.school-menu-side {
+    color: #c9c9c9;
+}
+
+.school-menu-label {
+    color: #8a8a8a;
+    font-size: .85rem;
+    font-style: italic;
+}
+
 .photo-widget {
     position: relative;
     height: 100%;

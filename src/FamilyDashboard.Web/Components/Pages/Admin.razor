@@ -4,6 +4,7 @@
 @using FamilyDashboard.Web.Services
 @using FamilyDashboard.Web.Services.Calendar
 @using FamilyDashboard.Web.Services.Photos
+@using FamilyDashboard.Web.Services.SchoolMenus
 @using FamilyDashboard.Web.Services.Weather
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.EntityFrameworkCore
@@ -16,6 +17,7 @@
 @inject IJSRuntime JS
 @inject IPhotoService PhotoService
 @inject IWeatherService WeatherService
+@inject ISchoolMenuService SchoolMenuService
 @implements IAsyncDisposable
 
 <div class="admin-page">
@@ -79,7 +81,7 @@
                         {
                             <button class="palette-item" @onclick="() => AddWidget(SelectedScreen, type)">
                                 <span class="palette-icon">@WidgetIcon(type)</span>
-                                <span>@type</span>
+                                <span>@WidgetLabel(type)</span>
                                 <span class="palette-plus">+</span>
                             </button>
                         }
@@ -129,10 +131,10 @@
                                  data-h="@widget.Height"
                                  role="button"
                                  tabindex="0"
-                                 aria-label="@($"{widget.WidgetType} widget at column {widget.PositionX}, row {widget.PositionY}, {widget.Width} by {widget.Height}")"
+                                 aria-label="@($"{WidgetLabel(widget.WidgetType)} widget at column {widget.PositionX}, row {widget.PositionY}, {widget.Width} by {widget.Height}")"
                                  @onclick="() => SelectWidget(widget.Id)">
                                 <span class="canvas-block-icon">@WidgetIcon(widget.WidgetType)</span>
-                                <span>@widget.WidgetType</span>
+                                <span>@WidgetLabel(widget.WidgetType)</span>
                                 <small>@widget.Width x @widget.Height</small>
                                 <span class="widget-hover-actions" @onclick:stopPropagation="true">
                                     <button type="button" title="Edit widget" @onclick="() => OpenWidgetModal(widget.Id)">✎</button>
@@ -152,7 +154,7 @@
                 @if (SelectedWidget is { } layoutWidget)
                 {
                     <aside class="editor-tip-panel layout-panel">
-                        <strong>@layoutWidget.WidgetType layout</strong>
+                        <strong>@WidgetLabel(layoutWidget.WidgetType) layout</strong>
                         <div class="layout-fields">
                             <label>Column<input id="layout-x" type="number" min="1" max="12" @bind="layoutWidget.PositionX" @bind:after="() => SaveWidget(layoutWidget)" /></label>
                             <label>Row<input id="layout-y" type="number" min="1" max="12" @bind="layoutWidget.PositionY" @bind:after="() => SaveWidget(layoutWidget)" /></label>
@@ -374,7 +376,7 @@
     <div class="modal-backdrop" role="presentation" @onclick="CloseWidgetModal">
         <div class="widget-modal" role="dialog" aria-modal="true" aria-labelledby="widget-modal-title" @onclick:stopPropagation="true">
             <div class="modal-header">
-                <div><span class="modal-icon">@WidgetIcon(SelectedWidget.WidgetType)</span><h2 id="widget-modal-title">Configure @SelectedWidget.WidgetType</h2></div>
+                <div><span class="modal-icon">@WidgetIcon(SelectedWidget.WidgetType)</span><h2 id="widget-modal-title">Configure @WidgetLabel(SelectedWidget.WidgetType)</h2></div>
                 <button class="modal-close" aria-label="Close widget settings" @onclick="CloseWidgetModal">×</button>
             </div>
             <div class="modal-body">
@@ -523,6 +525,47 @@
                             <label class="checkbox-label"><input type="checkbox" @bind="photoSettings.HiRes" disabled="@(!_photoSourceIsAlbum)" /> High resolution <small>largest size iCloud offers</small></label>
                         </div>
                     }
+                    else if (SelectedWidget.WidgetType == "SchoolMenu")
+                    {
+                        var menuSettings = SelectedWidget.SchoolMenuSettings;
+                        <div class="property-section-title">Menu</div>
+                        @if (_isLoadingSchoolMenus)
+                        {
+                            <div class="modal-note">Loading the district's menus…</div>
+                        }
+                        else if (_schoolMenuTypes.Count == 0)
+                        {
+                            <div class="modal-note">@(_schoolMenuMessage ?? "No menus found for this district.")</div>
+                        }
+                        else
+                        {
+                            <label>Menu to show
+                                <select id="school-menu-type" value="@menuSettings.MenuTypeId" @onchange="args => SelectSchoolMenu(menuSettings, args.Value?.ToString())">
+                                    <option value="">Choose a menu…</option>
+                                    @foreach (var menuType in _schoolMenuTypes)
+                                    {
+                                        <option value="@menuType.Id">@menuType.Name</option>
+                                    }
+                                </select>
+                            </label>
+                        }
+                        <div class="modal-note">Menus usually change each school year. When a new year's menu is published, choose it here.</div>
+                        <label>Days to show
+                            <select id="school-menu-days" @bind="menuSettings.DaysToShow">
+                                @foreach (var days in SchoolMenuWidgetSettings.DaysToShowOptions)
+                                {
+                                    <option value="@days">@days @(days == 1 ? "day" : "days")</option>
+                                }
+                            </select>
+                        </label>
+                        <label class="checkbox-label"><input type="checkbox" @bind="menuSettings.ShowSides" /> Show sides, fruit and milk <small>off shows only the entrée choices</small></label>
+                        <div class="property-section-title">District</div>
+                        <div class="weather-location-search">
+                            <input id="school-menu-district" placeholder="District id" @bind="menuSettings.OrganizationId" />
+                            <button type="button" class="secondary-button" @onclick="() => LoadSchoolMenuTypes(menuSettings.OrganizationId)">Load menus</button>
+                        </div>
+                        <div class="modal-note">Set for Frederick County Public Schools (VA). Another district that publishes menus on School Nutrition and Fitness works too: use the number after <code>sid=</code> in its menu site link.</div>
+                    }
                     else if (SelectedWidget.WidgetType == "Weather")
                     {
                         var showCurrent = SelectedWidget.WeatherShowCurrent;
@@ -628,7 +671,7 @@
     private List<CalendarFeed> _feeds = [];
     private List<DashboardScreen> _screens = [];
     private CalendarFeed _newFeed = new();
-    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos"];
+    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos", "SchoolMenu"];
     private static readonly string[] WeatherForecastModes = ["None", "Daily", "Hourly"];
     private static readonly ResizeHandle[] ResizeHandles = Enum.GetValues<ResizeHandle>();
     private int _selectedScreenId;
@@ -660,6 +703,9 @@
     private string _weatherLocationQuery = string.Empty;
     private bool _isLookingUpWeather;
     private DotNetObjectReference<Admin>? _editorReference;
+    private IReadOnlyList<SchoolMenuType> _schoolMenuTypes = [];
+    private bool _isLoadingSchoolMenus;
+    private string? _schoolMenuMessage;
 
     // Display shapes offered for the layout preview, as "width:height".
     private static readonly (string Value, string Label)[] AspectRatios =
@@ -814,12 +860,49 @@
         _selectedWidgetId = id;
     }
 
-    private void OpenWidgetModal(int id)
+    private async Task OpenWidgetModal(int id)
     {
         _selectedWidgetId = id;
         _isWidgetModalOpen = true;
         ResetWeatherLookup();
         ResetPhotoSource();
+        if (SelectedWidget is { WidgetType: "SchoolMenu" } widget)
+        {
+            await LoadSchoolMenuTypes(widget.SchoolMenuSettings.OrganizationId);
+        }
+    }
+
+    private async Task LoadSchoolMenuTypes(string? organizationId)
+    {
+        _schoolMenuTypes = [];
+        _schoolMenuMessage = null;
+        if (string.IsNullOrWhiteSpace(organizationId))
+        {
+            _schoolMenuMessage = "Enter the district id to load its menus.";
+            return;
+        }
+
+        _isLoadingSchoolMenus = true;
+        StateHasChanged();
+        try
+        {
+            _schoolMenuTypes = await SchoolMenuService.GetMenuTypesAsync(organizationId.Trim());
+            if (_schoolMenuTypes.Count == 0)
+            {
+                _schoolMenuMessage = "Couldn't load menus for this district. Check the district id, or try again later.";
+            }
+        }
+        finally
+        {
+            _isLoadingSchoolMenus = false;
+        }
+    }
+
+    private void SelectSchoolMenu(SchoolMenuWidgetSettings settings, string? menuTypeId)
+    {
+        var menuType = _schoolMenuTypes.FirstOrDefault(type => type.Id == menuTypeId);
+        settings.MenuTypeId = menuType?.Id ?? "";
+        settings.MenuName = menuType?.Name ?? "";
     }
 
     // Called by dashboard-editor.js when a block is dropped, resized or nudged with the keyboard.
@@ -973,8 +1056,11 @@
         "Weather" => "☼",
         "Calendar" => "▦",
         "Photos" => "▧",
+        "SchoolMenu" => "≡",
         _ => "□"
     };
+
+    private static string WidgetLabel(string type) => type == "SchoolMenu" ? "School menu" : type;
 
     private static (int Width, int Height) ParseAspectRatio(string? value)
     {
@@ -1125,11 +1211,18 @@
         _isWidgetModalOpen = _selectedWidgetId != 0;
         ResetWeatherLookup();
         ResetPhotoSource();
+        if (widgetType == "SchoolMenu" && SelectedWidget is { } widget)
+        {
+            await LoadSchoolMenuTypes(widget.SchoolMenuSettings.OrganizationId);
+        }
     }
 
     private async Task SaveWidget(DashboardWidget widget)
     {
         widget.CalendarWeeks = Math.Clamp(widget.CalendarWeeks, 1, 6);
+        var menu = widget.SchoolMenuSettings;
+        menu.OrganizationId = string.IsNullOrWhiteSpace(menu.OrganizationId) ? SchoolMenuWidgetSettings.DefaultOrganizationId : menu.OrganizationId.Trim();
+        menu.DaysToShow = Math.Clamp(menu.DaysToShow, 1, 5);
         var photo = widget.PhotoSettings;
         photo.Brightness = Math.Clamp(photo.Brightness, 0, 100);
         if (photo.ChangeIntervalSeconds % 60 != 0 || !PhotoWidgetSettings.ChangeIntervalMinuteOptions.Contains(photo.ChangeIntervalSeconds / 60))
