@@ -1,5 +1,6 @@
 using FamilyDashboard.Web.Services.Calendar;
 using FamilyDashboard.Web.Services.Photos;
+using FamilyDashboard.Web.Services.SchoolMenus;
 using FamilyDashboard.Web.Services.Weather;
 using FamilyDashboard.Web.Data.Entities;
 
@@ -21,10 +22,12 @@ public class DashboardStateService
     public IReadOnlyList<string> PhotoPaths { get; private set; } = [];
     private readonly Dictionary<int, IReadOnlyList<AlbumPhoto>> _albumPhotos = [];
     private readonly Dictionary<int, AlbumSyncStatus> _albumStatus = [];
+    private readonly Dictionary<string, SchoolMenuDto> _schoolMenus = [];
 
     public event Action? CalendarChanged;
     public event Action? WeatherChanged;
     public event Action? PhotosChanged;
+    public event Action? SchoolMenusChanged;
 
     /// <summary>Raised with the widget id when a shared album widget's photos or sync status change.</summary>
     public event Action<int>? AlbumChanged;
@@ -59,6 +62,17 @@ public class DashboardStateService
     {
         lock (_lock) { _weather[location] = weather; }
         WeatherChanged?.Invoke();
+    }
+
+    public SchoolMenuDto? GetSchoolMenu(string menuTypeId)
+    {
+        lock (_lock) { return _schoolMenus.GetValueOrDefault(menuTypeId); }
+    }
+
+    public void UpdateSchoolMenu(SchoolMenuDto menu)
+    {
+        lock (_lock) { _schoolMenus[menu.MenuTypeId] = menu; }
+        SchoolMenusChanged?.Invoke();
     }
 
     public void UpdatePhotos(List<string> paths)

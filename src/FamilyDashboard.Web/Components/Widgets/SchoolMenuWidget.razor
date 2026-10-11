@@ -1,0 +1,104 @@
+@implements IDisposable
+@inject DashboardStateService State
+@using FamilyDashboard.Web.Data.Entities
+@using FamilyDashboard.Web.Services.SchoolMenus
+
+<div class="widget school-menu-widget">
+    <div class="school-menu-header">
+        <h2><i class="fa-solid fa-utensils" aria-hidden="true"></i> @Title</h2>
+    </div>
+    @if (string.IsNullOrWhiteSpace(Settings.MenuTypeId))
+    {
+        <div class="loading">Choose a menu for this widget in admin</div>
+    }
+    else if (State.GetSchoolMenu(Settings.MenuTypeId) is not { } menu)
+    {
+        <div class="loading">Loading menu…</div>
+    }
+    else if (UpcomingDays(menu) is { Count: > 0 } days)
+    {
+        <div class="school-menu-days">
+            @foreach (var day in days)
+            {
+                var items = VisibleItems(day);
+                <section class="school-menu-day @(day.Date == Today ? "is-today" : "")">
+                    <h3>@DayLabel(day.Date)</h3>
+                    <ul>
+                        @foreach (var item in items)
+                        {
+                            <li class="@(item.IsLabel ? "school-menu-label" : item.IsEntree ? "school-menu-entree" : "school-menu-side")">@item.Name</li>
+                        }
+                    </ul>
+                </section>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="loading">No menu published for the coming days</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public DashboardWidget Widget { get; set; } = default!;
+
+    private Timer? _dayTimer;
+
+    private SchoolMenuWidgetSettings Settings => Widget.SchoolMenuSettings;
+
+    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Now);
+
+    private string Title
+    {
+        get
+        {
+            var name = State.GetSchoolMenu(Settings.MenuTypeId)?.Name;
+            return string.IsNullOrWhiteSpace(name)
+                ? string.IsNullOrWhiteSpace(Settings.MenuName) ? "School menu" : Settings.MenuName
+                : name;
+        }
+    }
+
+    private List<SchoolMenuDay> UpcomingDays(SchoolMenuDto menu) =>
+        menu.Days
+            .Where(day => day.Date >= Today)
+            .Take(Math.Clamp(Settings.DaysToShow, 1, 5))
+            .ToList();
+
+    private List<SchoolMenuItem> VisibleItems(SchoolMenuDay day)
+    {
+        if (Settings.ShowSides)
+        {
+            return day.Items.ToList();
+        }
+
+        // Without sides, a trailing "or" before the first "Choose" line would connect to nothing.
+        var entrees = day.Items.Where(item => item.IsEntree).ToList();
+        while (entrees.Count > 0 && entrees[^1].IsLabel)
+        {
+            entrees.RemoveAt(entrees.Count - 1);
+        }
+        return entrees;
+    }
+
+    private static string DayLabel(DateOnly date) =>
+        date == Today ? "Today"
+        : date == Today.AddDays(1) ? "Tomorrow"
+        : date.ToString("dddd, MMM d");
+
+    protected override void OnInitialized()
+    {
+        State.SchoolMenusChanged += OnChanged;
+        // "Today" moves at midnight even when no new menu data arrives.
+        _dayTimer = new Timer(_ => OnChanged(), null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        State.SchoolMenusChanged -= OnChanged;
+        _dayTimer?.Dispose();
+    }
+}

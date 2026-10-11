@@ -4,6 +4,7 @@ using FamilyDashboard.Web.Data.Entities;
 using FamilyDashboard.Web.Services;
 using FamilyDashboard.Web.Services.Calendar;
 using FamilyDashboard.Web.Services.Photos;
+using FamilyDashboard.Web.Services.SchoolMenus;
 using FamilyDashboard.Web.Services.Weather;
 using FamilyDashboard.Web.Workers;
 using Microsoft.EntityFrameworkCore;
@@ -67,11 +68,17 @@ builder.Services.AddHttpClient<IAppleSharedAlbumClient, AppleSharedAlbumClient>(
     client.DefaultRequestHeaders.UserAgent.ParseAdd("FamilyDashboard/1.0 (self-hosted family photo dashboard)");
 });
 builder.Services.AddScoped<SharedAlbumCache>();
+builder.Services.AddHttpClient<ISchoolMenuService, SchoolNutritionAndFitnessMenuService>(client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("FamilyDashboard/1.0 (self-hosted family dashboard)");
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
 
 // ---- Background refresh workers ----
 builder.Services.AddHostedService<CalendarRefreshWorker>();
 builder.Services.AddHostedService<WeatherRefreshWorker>();
 builder.Services.AddHostedService<PhotoScanWorker>();
+builder.Services.AddHostedService<SchoolMenuRefreshWorker>();
 
 var app = builder.Build();
 
@@ -231,6 +238,7 @@ using (var scope = app.Services.CreateScope())
     // Photo widget options are one JSON object. EF reads properties missing from it as zero/false
     // rather than the class defaults, so existing widgets get the full default object. Braces are
     // doubled because ExecuteSqlRaw formats the string.
+    const string defaultSchoolMenuSettings = """'{{"DaysToShow":3,"MenuName":"","MenuTypeId":"","OrganizationId":"1678132657639","ShowSides":true}}'""";
     const string defaultPhotoSettings = """'{{"AlbumUrl":"","Brightness":100,"ChangeIntervalSeconds":300,"ClickToRotate":false,"HiRes":false,"ShowMeta":false,"Style":"Crop","Transitions":true,"Vignette":false}}'""";
 
     // Weather display options. Defaults keep the widget's original look (current conditions plus a 5-day forecast).
@@ -253,6 +261,7 @@ using (var scope = app.Services.CreateScope())
                  ("WeatherShowPrecipitationChance", "INTEGER NOT NULL DEFAULT 0"),
                  ("WeatherCondensed", "INTEGER NOT NULL DEFAULT 0"),
                  ("PhotoSettings", $"TEXT NOT NULL DEFAULT {defaultPhotoSettings}"),
+                 ("SchoolMenuSettings", $"TEXT NOT NULL DEFAULT {defaultSchoolMenuSettings}"),
              })
     {
         if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))

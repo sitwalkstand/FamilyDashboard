@@ -24,5 +24,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             settings.ToJson();
             settings.Property(photo => photo.Style).HasConversion<string>();
         });
+        modelBuilder.Entity<DashboardWidget>().ComplexProperty(widget => widget.SchoolMenuSettings, settings => settings.ToJson());
     }
 }

@@ -37,6 +37,7 @@ public class DashboardWidget
     public bool WeatherShowPrecipitationChance { get; set; }
     public bool WeatherCondensed { get; set; }
     public PhotoWidgetSettings PhotoSettings { get; set; } = new();
+    public SchoolMenuWidgetSettings SchoolMenuSettings { get; set; } = new();
 
     public DashboardScreen? Screen { get; set; }
 }
