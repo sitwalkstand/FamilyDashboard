@@ -276,6 +276,19 @@ html, body {
     font-weight: 400;
 }
 
+/* On the dashboard the date sits beside the time when the widget is wide enough, and wraps below it otherwise. */
+.configured-widget .clock-widget {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    align-content: flex-start;
+    gap: .7rem 1.25rem;
+}
+
+.configured-widget .clock-widget .date {
+    margin-top: 0;
+}
+
 .weather-widget .current-temp {
     font-size: clamp(3.5rem, 7vw, 6rem);
     font-weight: 300;
