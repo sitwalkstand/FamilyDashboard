@@ -62,7 +62,7 @@
         }
         @if (Widget.WeatherForecastMode == "Hourly")
         {
-            <div class="forecast-row">
+            <div class="forecast-row forecast-hourly">
                 @foreach (var hour in w.Hourly.Where(hour => hour.Time > now).Take(ForecastLength))
                 {
                     <div class="forecast-day">
@@ -76,7 +76,7 @@
         }
         else if (Widget.WeatherForecastMode == "Daily")
         {
-            <div class="forecast-row">
+            <div class="forecast-row forecast-daily">
                 @foreach (var day in w.Forecast.Take(ForecastLength))
                 {
                     <div class="forecast-day">
