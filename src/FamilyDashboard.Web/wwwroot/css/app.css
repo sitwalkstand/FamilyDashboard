@@ -417,6 +417,129 @@ html, body {
     margin: .15rem 0;
 }
 
+/* On the dashboard the weather widget sizes its text from its own box (container query units), so a
+   short or narrow widget scales down instead of clipping. The forecast shows as many entries as fit
+   on one line: entries that would wrap land in zero-height rows and are hidden. */
+.configured-widget.widget-weather {
+    container-type: size;
+}
+
+.configured-widget .weather-widget {
+    height: 100%;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: clamp(.4rem, 3cqw, 1.5rem);
+}
+
+.configured-widget .weather-widget .current-main {
+    gap: clamp(.25rem, 2cqw, .6rem);
+}
+
+.configured-widget .weather-widget .current-temp {
+    font-size: clamp(1.1rem, min(40cqh, 11cqw), 6rem);
+}
+
+.configured-widget .weather-widget .current-icon {
+    font-size: clamp(.9rem, min(27cqh, 7.5cqw), 4rem);
+}
+
+.configured-widget .weather-widget .high-low {
+    margin-top: clamp(0rem, 2cqh, .35rem);
+    font-size: clamp(.6rem, min(11cqh, 4cqw), 1.2rem);
+    white-space: nowrap;
+}
+
+.configured-widget .weather-widget .feels-like,
+.configured-widget .weather-widget .weather-summary {
+    margin-top: 0;
+    font-size: clamp(.55rem, min(8cqh, 3.5cqw), 1.05rem);
+}
+
+.configured-widget .weather-widget .weather-extras {
+    font-size: clamp(.55rem, min(8cqh, 3cqw), 1rem);
+}
+
+.configured-widget .weather-widget .forecast-row {
+    --forecast-entry-width: 4.9em;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(var(--forecast-entry-width), 1fr));
+    grid-template-rows: auto;
+    grid-auto-rows: 0;
+    min-width: var(--forecast-entry-width);
+    overflow: hidden;
+    gap: 0 clamp(.2rem, 1.5cqw, 1.25rem);
+    margin: 0;
+    font-size: clamp(.55rem, min(11cqh, 3.2cqw), 1.1rem);
+}
+
+.configured-widget .weather-widget .forecast-row.forecast-hourly {
+    --forecast-entry-width: 3.4em;
+}
+
+.configured-widget .weather-widget .forecast-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 1em;
+}
+
+.configured-widget .weather-widget .forecast-icon {
+    margin: clamp(.05rem, 2cqh, .3rem) 0;
+}
+
+.configured-widget .weather-widget.condensed .current-temp {
+    font-size: clamp(.9rem, min(30cqh, 11cqw), 3.25rem);
+}
+
+.configured-widget .weather-widget.condensed .current-icon {
+    font-size: clamp(.8rem, min(20cqh, 7.5cqw), 2.4rem);
+}
+
+.configured-widget .weather-widget.condensed .high-low,
+.configured-widget .weather-widget.condensed .feels-like,
+.configured-widget .weather-widget.condensed .weather-summary,
+.configured-widget .weather-widget.condensed .weather-extras,
+.configured-widget .weather-widget.condensed .forecast-row {
+    font-size: clamp(.5rem, min(8cqh, 2.6cqw), .85rem);
+}
+
+/* Nearly square or tall widgets stack the current conditions above the forecast. */
+@container (aspect-ratio < 1.6) {
+    .configured-widget .weather-widget {
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .configured-widget .weather-widget .forecast-row {
+        flex: 0 0 auto;
+        align-self: stretch;
+        max-width: none;
+    }
+
+    .configured-widget .weather-widget .current-temp {
+        font-size: clamp(1.1rem, min(22cqh, 18cqw), 6rem);
+    }
+
+    .configured-widget .weather-widget .current-icon {
+        font-size: clamp(.9rem, min(15cqh, 12cqw), 4rem);
+    }
+
+    .configured-widget .weather-widget .high-low {
+        font-size: clamp(.6rem, min(6cqh, 5cqw), 1.2rem);
+    }
+
+    .configured-widget .weather-widget .forecast-row {
+        font-size: clamp(.55rem, min(6cqh, 4.2cqw), 1.1rem);
+    }
+}
+
+/* Too narrow for the current conditions and even one forecast entry side by side. */
+@container (aspect-ratio >= 1.6) and (max-width: 15rem) {
+    .configured-widget .weather-widget .forecast-row {
+        display: none;
+    }
+}
+
 .calendar-widget {
     max-height: 100%;
     display: flex;
