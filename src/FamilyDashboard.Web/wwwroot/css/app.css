@@ -348,6 +348,21 @@ html, body {
     opacity: .85;
 }
 
+/* The forecast with any extra details below it, beside the current conditions. */
+.weather-widget .weather-details {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: .6rem;
+    min-width: 0;
+    max-width: 760px;
+}
+
+.weather-widget .weather-details .forecast-row {
+    flex: 0 0 auto;
+    max-width: none;
+}
+
 .weather-widget .weather-extras {
     display: grid;
     grid-template-columns: repeat(2, auto);
@@ -455,8 +470,27 @@ html, body {
     font-size: clamp(.55rem, min(8cqh, 3.5cqw), 1.05rem);
 }
 
+.configured-widget .weather-widget .weather-details {
+    justify-content: center;
+    gap: clamp(.15rem, 3cqh, .6rem);
+    max-height: 100%;
+    overflow: hidden;
+}
+
 .configured-widget .weather-widget .weather-extras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .15em 1.25em;
     font-size: clamp(.55rem, min(8cqh, 3cqw), 1rem);
+}
+
+/* With extras below it, the forecast gets a smaller share of the height. */
+.configured-widget .weather-widget .weather-details:has(.weather-extras) .forecast-row {
+    font-size: clamp(.55rem, min(10cqh, 3.2cqw), 1.1rem);
+}
+
+.configured-widget .weather-widget .weather-details:has(.weather-extras) .weather-extras {
+    font-size: clamp(.55rem, min(8.5cqh, 3cqw), 1rem);
 }
 
 .configured-widget .weather-widget .forecast-row {
@@ -503,6 +537,11 @@ html, body {
     font-size: clamp(.5rem, min(8cqh, 2.6cqw), .85rem);
 }
 
+.configured-widget .weather-widget.condensed .weather-details:has(.weather-extras) .forecast-row,
+.configured-widget .weather-widget.condensed .weather-details:has(.weather-extras) .weather-extras {
+    font-size: clamp(.5rem, min(6.5cqh, 2.6cqw), .85rem);
+}
+
 /* Nearly square or tall widgets stack the current conditions above the forecast. */
 @container (aspect-ratio < 1.6) {
     .configured-widget .weather-widget {
@@ -530,6 +569,20 @@ html, body {
 
     .configured-widget .weather-widget .forecast-row {
         font-size: clamp(.55rem, min(6cqh, 4.2cqw), 1.1rem);
+    }
+
+    .configured-widget .weather-widget .weather-details {
+        flex: 0 1 auto;
+        align-self: stretch;
+        max-width: none;
+    }
+
+    .configured-widget .weather-widget .weather-details:has(.weather-extras) .forecast-row {
+        font-size: clamp(.55rem, min(5cqh, 4.2cqw), 1.1rem);
+    }
+
+    .configured-widget .weather-widget .weather-details:has(.weather-extras) .weather-extras {
+        font-size: clamp(.55rem, min(4.5cqh, 3.6cqw), 1rem);
     }
 }
 
