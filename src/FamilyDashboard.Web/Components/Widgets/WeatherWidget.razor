@@ -26,64 +26,70 @@
                 }
             </div>
         }
-        @if (HasExtraInfo)
+        @if (HasForecast || HasExtraInfo)
         {
-            <div class="weather-extras">
-                @if (Widget.WeatherShowSunriseSunset && today?.Sunrise is { } sunrise && today.Sunset is { } sunset)
+            @* Extra details sit below the forecast, beside the current conditions. *@
+            <div class="weather-details">
+                @if (Widget.WeatherForecastMode == "Hourly")
                 {
-                    <div class="weather-extra"><i class="fa-solid fa-sun" aria-hidden="true"></i><span>&uarr; @sunrise.ToString("h:mm tt") &nbsp; &darr; @sunset.ToString("h:mm tt")</span></div>
-                }
-                @if (Widget.WeatherShowMoonPhase)
-                {
-                    var moon = WeatherConditions.MoonPhase(now.UtcDateTime);
-                    <div class="weather-extra"><i class="@moon.IconClass" aria-hidden="true"></i><span>@moon.Name</span></div>
-                }
-                @if (Widget.WeatherShowWind && w.WindSpeed is { } windSpeed)
-                {
-                    <div class="weather-extra"><i class="fa-solid fa-wind" aria-hidden="true"></i><span>@Math.Round(windSpeed) @(Location.IsImperial ? "mph" : "km/h") @(w.WindDirection is { } direction ? WeatherConditions.CompassDirection(direction) : "")</span></div>
-                }
-                @if (Widget.WeatherShowUvIndex && w.UvIndex is { } uvIndex)
-                {
-                    <div class="weather-extra"><i class="fa-solid fa-sun" aria-hidden="true"></i><span>UV @Math.Round(uvIndex) @WeatherConditions.UvLevel(uvIndex)</span></div>
-                }
-                @if (Widget.WeatherShowHumidity && w.Humidity is { } humidity)
-                {
-                    <div class="weather-extra"><i class="fa-solid fa-droplet" aria-hidden="true"></i><span>@Math.Round(humidity)% humidity</span></div>
-                }
-                @if (Widget.WeatherShowPressure && w.Pressure is { } pressure)
-                {
-                    <div class="weather-extra"><i class="fa-solid fa-gauge" aria-hidden="true"></i><span>@(Location.IsImperial ? $"{pressure:0.00} inHg" : $"{pressure:0} hPa")</span></div>
-                }
-                @if (Widget.WeatherShowVisibility && w.Visibility is { } visibility)
-                {
-                    <div class="weather-extra"><i class="fa-solid fa-eye" aria-hidden="true"></i><span>@Math.Round(visibility) @(Location.IsImperial ? "mi" : "km") visibility</span></div>
-                }
-            </div>
-        }
-        @if (Widget.WeatherForecastMode == "Hourly")
-        {
-            <div class="forecast-row forecast-hourly">
-                @foreach (var hour in w.Hourly.Where(hour => hour.Time > now).Take(ForecastLength))
-                {
-                    <div class="forecast-day">
-                        <div class="day-label">@hour.Time.ToString("h tt")</div>
-                        <i class="forecast-icon @WeatherConditions.IconClass(hour.WeatherCode, hour.IsDay)" aria-hidden="true"></i>
-                        <div class="day-temps">@Math.Round(hour.Temperature)&deg;</div>
-                        @Precipitation(hour.PrecipitationAmount, hour.PrecipitationChance)
+                    <div class="forecast-row forecast-hourly">
+                        @foreach (var hour in w.Hourly.Where(hour => hour.Time > now).Take(ForecastLength))
+                        {
+                            <div class="forecast-day">
+                                <div class="day-label">@hour.Time.ToString("h tt")</div>
+                                <i class="forecast-icon @WeatherConditions.IconClass(hour.WeatherCode, hour.IsDay)" aria-hidden="true"></i>
+                                <div class="day-temps">@Math.Round(hour.Temperature)&deg;</div>
+                                @Precipitation(hour.PrecipitationAmount, hour.PrecipitationChance)
+                            </div>
+                        }
                     </div>
                 }
-            </div>
-        }
-        else if (Widget.WeatherForecastMode == "Daily")
-        {
-            <div class="forecast-row forecast-daily">
-                @foreach (var day in w.Forecast.Take(ForecastLength))
+                else if (Widget.WeatherForecastMode == "Daily")
                 {
-                    <div class="forecast-day">
-                        <div class="day-label">@day.Date.ToString("ddd")</div>
-                        <i class="forecast-icon @WeatherConditions.IconClass(day.WeatherCode, true)" aria-hidden="true"></i>
-                        <div class="day-temps">@Math.Round(day.High)&deg; / @Math.Round(day.Low)&deg;</div>
-                        @Precipitation(day.PrecipitationAmount, day.PrecipitationChance)
+                    <div class="forecast-row forecast-daily">
+                        @foreach (var day in w.Forecast.Take(ForecastLength))
+                        {
+                            <div class="forecast-day">
+                                <div class="day-label">@day.Date.ToString("ddd")</div>
+                                <i class="forecast-icon @WeatherConditions.IconClass(day.WeatherCode, true)" aria-hidden="true"></i>
+                                <div class="day-temps">@Math.Round(day.High)&deg; / @Math.Round(day.Low)&deg;</div>
+                                @Precipitation(day.PrecipitationAmount, day.PrecipitationChance)
+                            </div>
+                        }
+                    </div>
+                }
+                @if (HasExtraInfo)
+                {
+                    <div class="weather-extras">
+                        @if (Widget.WeatherShowSunriseSunset && today?.Sunrise is { } sunrise && today.Sunset is { } sunset)
+                        {
+                            <div class="weather-extra"><i class="fa-solid fa-sun" aria-hidden="true"></i><span>&uarr; @sunrise.ToString("h:mm tt") &nbsp; &darr; @sunset.ToString("h:mm tt")</span></div>
+                        }
+                        @if (Widget.WeatherShowMoonPhase)
+                        {
+                            var moon = WeatherConditions.MoonPhase(now.UtcDateTime);
+                            <div class="weather-extra"><i class="@moon.IconClass" aria-hidden="true"></i><span>@moon.Name</span></div>
+                        }
+                        @if (Widget.WeatherShowWind && w.WindSpeed is { } windSpeed)
+                        {
+                            <div class="weather-extra"><i class="fa-solid fa-wind" aria-hidden="true"></i><span>@Math.Round(windSpeed) @(Location.IsImperial ? "mph" : "km/h") @(w.WindDirection is { } direction ? WeatherConditions.CompassDirection(direction) : "")</span></div>
+                        }
+                        @if (Widget.WeatherShowUvIndex && w.UvIndex is { } uvIndex)
+                        {
+                            <div class="weather-extra"><i class="fa-solid fa-sun" aria-hidden="true"></i><span>UV @Math.Round(uvIndex) @WeatherConditions.UvLevel(uvIndex)</span></div>
+                        }
+                        @if (Widget.WeatherShowHumidity && w.Humidity is { } humidity)
+                        {
+                            <div class="weather-extra"><i class="fa-solid fa-droplet" aria-hidden="true"></i><span>@Math.Round(humidity)% humidity</span></div>
+                        }
+                        @if (Widget.WeatherShowPressure && w.Pressure is { } pressure)
+                        {
+                            <div class="weather-extra"><i class="fa-solid fa-gauge" aria-hidden="true"></i><span>@(Location.IsImperial ? $"{pressure:0.00} inHg" : $"{pressure:0} hPa")</span></div>
+                        }
+                        @if (Widget.WeatherShowVisibility && w.Visibility is { } visibility)
+                        {
+                            <div class="weather-extra"><i class="fa-solid fa-eye" aria-hidden="true"></i><span>@Math.Round(visibility) @(Location.IsImperial ? "mi" : "km") visibility</span></div>
+                        }
                     </div>
                 }
             </div>
@@ -102,6 +108,8 @@
     private WeatherLocationKey Location => WeatherLocationKey.For(Widget);
 
     private int ForecastLength => Math.Max(1, Widget.WeatherForecastLength);
+
+    private bool HasForecast => Widget.WeatherForecastMode is "Hourly" or "Daily";
 
     private bool HasExtraInfo => Widget.WeatherShowSunriseSunset || Widget.WeatherShowMoonPhase || Widget.WeatherShowWind
         || Widget.WeatherShowUvIndex || Widget.WeatherShowHumidity || Widget.WeatherShowPressure || Widget.WeatherShowVisibility;
