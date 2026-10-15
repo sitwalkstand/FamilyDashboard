@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace FamilyDashboard.Web.Workers;
 
 /// <summary>
-/// Polls Home Assistant for device tracker locations while at least one Family Locations widget is
+/// Polls Home Assistant for device tracker locations while at least one Family Locations or Family Map widget is
 /// enabled. A failed poll keeps the last locations and records the failure so the widget can say
 /// the data is stale.
 /// </summary>
@@ -59,7 +59,7 @@ public class FamilyLocationRefreshWorker(
             var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
             await using var db = await dbFactory.CreateDbContextAsync(stoppingToken);
             var needed = await db.Widgets.AnyAsync(
-                widget => widget.WidgetType == "FamilyLocations" && widget.Enabled && widget.Screen!.Enabled,
+                widget => (widget.WidgetType == "FamilyLocations" || widget.WidgetType == "FamilyMap") && widget.Enabled && widget.Screen!.Enabled,
                 stoppingToken);
             if (!needed)
             {

@@ -1,0 +1,141 @@
+@implements IAsyncDisposable
+@inject DashboardStateService State
+@inject IJSRuntime JS
+@using FamilyDashboard.Web.Data.Entities
+@using FamilyDashboard.Web.Services.FamilyLocations
+@using Microsoft.JSInterop
+
+<div class="widget family-map-widget">
+    @if (Settings.EntityIdList.Count == 0)
+    {
+        <div class="loading">Choose family members for this map in admin</div>
+    }
+    else
+    {
+        @if (_stale)
+        {
+            <span class="family-stale family-map-stale" title="@_status?.Message">Not updating</span>
+        }
+        @if (_members.Count == 0)
+        {
+            <div class="loading family-map-loading">@(_status is { Succeeded: false } ? "Can't reach Home Assistant" : "Loading locations…")</div>
+        }
+        @* Blazor must not diff this element's children: Leaflet owns them. *@
+        <div class="family-map-canvas" @ref="_mapElement" @key="Widget.Id"></div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public DashboardWidget Widget { get; set; } = default!;
+
+    private ElementReference _mapElement;
+    private IReadOnlyList<FamilyMemberDto> _members = [];
+    private FamilyLocationStatus? _status;
+    private bool _stale;
+    private bool _mapCreated;
+    private bool _disposed;
+
+    private FamilyLocationsWidgetSettings Settings => Widget.FamilyMapSettings;
+
+    protected override void OnInitialized()
+    {
+        Load();
+        State.FamilyLocationsChanged += OnChanged;
+    }
+
+    private void Load()
+    {
+        (_members, _status) = State.GetFamilyLocations();
+        _stale = _status is { Succeeded: false } && _members.Count > 0;
+    }
+
+    private void OnChanged()
+    {
+        Load();
+        InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            await PushMembersAsync();
+        });
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_mapCreated || _disposed || Settings.EntityIdList.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("familyMap.create", _mapElement);
+            _mapCreated = true;
+            await PushMembersAsync();
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // The circuit went away or the script isn't loaded; the next render tries again.
+        }
+    }
+
+    private async Task PushMembersAsync()
+    {
+        if (!_mapCreated || _disposed)
+        {
+            return;
+        }
+
+        var wanted = Settings.EntityIdList.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var payload = _members
+            .Where(member => wanted.Contains(member.EntityId))
+            .Select(member => new
+            {
+                id = member.EntityId,
+                name = member.Name,
+                initials = Initials(member.Name),
+                place = member.Place,
+                home = member.IsHome,
+                lat = member.Latitude,
+                lon = member.Longitude
+            })
+            .ToList();
+
+        try
+        {
+            await JS.InvokeVoidAsync("familyMap.update", _mapElement, payload);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+        }
+    }
+
+    private static string Initials(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return parts.Length switch
+        {
+            0 => "?",
+            1 => parts[0][..1].ToUpperInvariant(),
+            _ => string.Concat(parts[0][..1], parts[^1][..1]).ToUpperInvariant()
+        };
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        State.FamilyLocationsChanged -= OnChanged;
+        if (!_mapCreated)
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("familyMap.dispose", _mapElement);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+        }
+    }
+}
