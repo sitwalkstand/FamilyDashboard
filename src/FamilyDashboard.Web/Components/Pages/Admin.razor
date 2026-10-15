@@ -3,6 +3,7 @@
 @using FamilyDashboard.Web.Data.Entities
 @using FamilyDashboard.Web.Services
 @using FamilyDashboard.Web.Services.Calendar
+@using FamilyDashboard.Web.Services.FamilyLocations
 @using FamilyDashboard.Web.Services.Photos
 @using FamilyDashboard.Web.Services.SchoolMenus
 @using FamilyDashboard.Web.Services.Weather
@@ -18,6 +19,7 @@
 @inject IPhotoService PhotoService
 @inject IWeatherService WeatherService
 @inject ISchoolMenuService SchoolMenuService
+@inject IFamilyLocationService FamilyLocationService
 @implements IAsyncDisposable
 
 <div class="admin-page">
@@ -566,6 +568,36 @@
                         </div>
                         <div class="modal-note">Set for Frederick County Public Schools (VA). Another district that publishes menus on School Nutrition and Fitness works too: use the number after <code>sid=</code> in its menu site link.</div>
                     }
+                    else if (SelectedWidget.WidgetType == "FamilyLocations")
+                    {
+                        var familySettings = SelectedWidget.FamilyLocationSettings;
+                        var selectedIds = familySettings.EntityIdList;
+                        <div class="property-section-title">Family members</div>
+                        @if (_isLoadingTrackers)
+                        {
+                            <div class="modal-note">Loading device trackers from Home Assistant…</div>
+                        }
+                        else if (_familyTrackers.Count == 0)
+                        {
+                            <div class="modal-note">@(_familyTrackerMessage ?? "No device trackers found in Home Assistant.")</div>
+                        }
+                        else
+                        {
+                            @foreach (var tracker in _familyTrackers)
+                            {
+                                var entityId = tracker.EntityId;
+                                <label class="checkbox-label">
+                                    <input type="checkbox" checked="@selectedIds.Contains(entityId, StringComparer.OrdinalIgnoreCase)"
+                                           @onchange="args => ToggleFamilyTracker(familySettings, entityId, (bool)(args.Value ?? false))" />
+                                    @tracker.Name <small>@tracker.Place</small>
+                                </label>
+                            }
+                        }
+                        <div class="modal-note">Trackers come from the Life360 integration in Home Assistant. Home Assistant's address and access token are set in <code>home-assistant.json</code> in the data directory.</div>
+                        <button type="button" class="secondary-button" @onclick="LoadFamilyTrackers">Reload trackers</button>
+                        <label>Title<input id="family-title" @bind="familySettings.Title" /></label>
+                        <label class="checkbox-label"><input type="checkbox" @bind="familySettings.ShowBattery" /> Show battery level</label>
+                    }
                     else if (SelectedWidget.WidgetType == "Weather")
                     {
                         var showCurrent = SelectedWidget.WeatherShowCurrent;
@@ -671,7 +703,7 @@
     private List<CalendarFeed> _feeds = [];
     private List<DashboardScreen> _screens = [];
     private CalendarFeed _newFeed = new();
-    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos", "SchoolMenu"];
+    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos", "SchoolMenu", "FamilyLocations"];
     private static readonly string[] WeatherForecastModes = ["None", "Daily", "Hourly"];
     private static readonly ResizeHandle[] ResizeHandles = Enum.GetValues<ResizeHandle>();
     private int _selectedScreenId;
@@ -705,6 +737,9 @@
     private DotNetObjectReference<Admin>? _editorReference;
     private IReadOnlyList<SchoolMenuType> _schoolMenuTypes = [];
     private bool _isLoadingSchoolMenus;
+    private IReadOnlyList<FamilyMemberDto> _familyTrackers = [];
+    private string? _familyTrackerMessage;
+    private bool _isLoadingTrackers;
     private string? _schoolMenuMessage;
 
     // Display shapes offered for the layout preview, as "width:height".
@@ -870,6 +905,50 @@
         {
             await LoadSchoolMenuTypes(widget.SchoolMenuSettings.OrganizationId);
         }
+        else if (SelectedWidget is { WidgetType: "FamilyLocations" })
+        {
+            await LoadFamilyTrackers();
+        }
+    }
+
+    private async Task LoadFamilyTrackers()
+    {
+        _familyTrackers = [];
+        _familyTrackerMessage = null;
+        if (!FamilyLocationService.IsConfigured)
+        {
+            _familyTrackerMessage = "Home Assistant isn't configured. Add HomeAssistant:BaseUrl and HomeAssistant:Token to home-assistant.json in the data directory, then restart.";
+            return;
+        }
+
+        _isLoadingTrackers = true;
+        StateHasChanged();
+        try
+        {
+            _familyTrackers = await FamilyLocationService.GetMembersAsync();
+            if (_familyTrackers.Count == 0)
+            {
+                _familyTrackerMessage = "Home Assistant has no device trackers. Check that the Life360 integration is set up.";
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
+        {
+            _familyTrackerMessage = $"Couldn't reach Home Assistant: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingTrackers = false;
+        }
+    }
+
+    private static void ToggleFamilyTracker(FamilyLocationsWidgetSettings settings, string entityId, bool selected)
+    {
+        var ids = settings.EntityIdList.Where(id => !id.Equals(entityId, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (selected)
+        {
+            ids.Add(entityId);
+        }
+        settings.EntityIds = string.Join(',', ids);
     }
 
     private async Task LoadSchoolMenuTypes(string? organizationId)
@@ -1057,10 +1136,16 @@
         "Calendar" => "▦",
         "Photos" => "▧",
         "SchoolMenu" => "≡",
+        "FamilyLocations" => "⌖",
         _ => "□"
     };
 
-    private static string WidgetLabel(string type) => type == "SchoolMenu" ? "School menu" : type;
+    private static string WidgetLabel(string type) => type switch
+    {
+        "SchoolMenu" => "School menu",
+        "FamilyLocations" => "Family locations",
+        _ => type
+    };
 
     private static (int Width, int Height) ParseAspectRatio(string? value)
     {
@@ -1214,6 +1299,10 @@
         if (widgetType == "SchoolMenu" && SelectedWidget is { } widget)
         {
             await LoadSchoolMenuTypes(widget.SchoolMenuSettings.OrganizationId);
+        }
+        else if (widgetType == "FamilyLocations")
+        {
+            await LoadFamilyTrackers();
         }
     }
 

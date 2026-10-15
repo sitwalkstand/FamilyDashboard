@@ -13,3 +13,5 @@ photos/
 src/FamilyDashboard.Web/App_Data/google-oauth.json
 google-oauth.json
 .env
+src/FamilyDashboard.Web/App_Data/home-assistant.json
+home-assistant.json

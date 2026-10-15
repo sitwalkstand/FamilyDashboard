@@ -1,0 +1,86 @@
+@implements IDisposable
+@inject DashboardStateService State
+@using FamilyDashboard.Web.Data.Entities
+@using FamilyDashboard.Web.Services.FamilyLocations
+
+<div class="widget family-widget">
+    <div class="family-header">
+        <h2><i class="fa-solid fa-location-dot" aria-hidden="true"></i> @(string.IsNullOrWhiteSpace(Settings.Title) ? "Family" : Settings.Title)</h2>
+        @if (_stale)
+        {
+            <span class="family-stale" title="@_status?.Message">Not updating</span>
+        }
+    </div>
+    @if (Settings.EntityIdList.Count == 0)
+    {
+        <div class="loading">Choose family members for this widget in admin</div>
+    }
+    else if (_members.Count == 0)
+    {
+        <div class="loading">@(_status is { Succeeded: false } ? "Can't reach Home Assistant" : "Loading locations…")</div>
+    }
+    else
+    {
+        <ul class="family-list">
+            @foreach (var member in Visible())
+            {
+                <li class="family-member @(member.IsHome ? "is-home" : "")">
+                    <span class="family-name">@member.Name</span>
+                    <span class="family-place">
+                        @if (member.IsDriving == true)
+                        {
+                            <i class="fa-solid fa-car" aria-label="Driving"></i>
+                        }
+                        @member.Place
+                    </span>
+                    @if (Settings.ShowBattery && member.BatteryPercent is { } battery)
+                    {
+                        <span class="family-battery @(battery <= 20 ? "is-low" : "")">
+                            <i class="fa-solid @(member.IsCharging == true ? "fa-bolt" : "fa-battery-half")" aria-hidden="true"></i> @battery%
+                        </span>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public DashboardWidget Widget { get; set; } = default!;
+
+    private IReadOnlyList<FamilyMemberDto> _members = [];
+    private FamilyLocationStatus? _status;
+    private bool _stale;
+
+    private FamilyLocationsWidgetSettings Settings => Widget.FamilyLocationSettings;
+
+    // Selected order is the order shown, so the family reads the way the admin arranged it.
+    private IEnumerable<FamilyMemberDto> Visible()
+    {
+        var byId = _members.ToDictionary(member => member.EntityId, StringComparer.OrdinalIgnoreCase);
+        return Settings.EntityIdList
+            .Select(id => byId.GetValueOrDefault(id))
+            .OfType<FamilyMemberDto>();
+    }
+
+    protected override void OnInitialized()
+    {
+        Load();
+        State.FamilyLocationsChanged += OnChanged;
+    }
+
+    private void Load()
+    {
+        (_members, _status) = State.GetFamilyLocations();
+        _stale = _status is { Succeeded: false } && _members.Count > 0;
+    }
+
+    private void OnChanged()
+    {
+        Load();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => State.FamilyLocationsChanged -= OnChanged;
+}
