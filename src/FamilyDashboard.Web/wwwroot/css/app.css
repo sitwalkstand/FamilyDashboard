@@ -904,6 +904,12 @@ html, body {
     background: #050505;
 }
 
+/* OpenStreetMap's tiles are light; invert them into a dark map to suit the dashboard. Only the tile
+   layer is filtered, so pins and labels keep their colors. */
+.family-map-canvas .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.55);
+}
+
 .family-map-loading {
     position: absolute;
     inset: 0;

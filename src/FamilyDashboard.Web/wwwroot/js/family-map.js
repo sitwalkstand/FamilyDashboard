@@ -3,8 +3,11 @@
 // The Blazor component creates one map per widget element, then calls update() on each new poll.
 // The map is never rebuilt on an update, so it doesn't flicker or lose its tiles.
 window.familyMap = (() => {
-    const TileUrl = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    const Attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+    // OpenStreetMap's standard tiles need no API key; a single family kiosk is well within their tile
+    // usage policy (https://operations.osmfoundation.org/policies/tiles/), which requires this
+    // attribution and a Referer, which browsers send. The tiles are darkened in CSS to suit the dashboard.
+    const TileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const Attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
     const maps = new WeakMap();
 
     function create(element) {
@@ -24,7 +27,7 @@ window.familyMap = (() => {
             attributionControl: true
         });
         map.attributionControl.setPrefix(false);
-        L.tileLayer(TileUrl, { attribution: Attribution, subdomains: 'abcd', maxZoom: 19 }).addTo(map);
+        L.tileLayer(TileUrl, { attribution: Attribution, maxZoom: 19 }).addTo(map);
         map.setView([0, 0], 2);
 
         const state = { map, markers: new Map(), fitted: false };
