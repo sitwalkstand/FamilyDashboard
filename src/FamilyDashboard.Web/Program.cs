@@ -3,6 +3,7 @@ using FamilyDashboard.Web.Data;
 using FamilyDashboard.Web.Data.Entities;
 using FamilyDashboard.Web.Services;
 using FamilyDashboard.Web.Services.Calendar;
+using FamilyDashboard.Web.Services.FamilyLocations;
 using FamilyDashboard.Web.Services.Photos;
 using FamilyDashboard.Web.Services.SchoolMenus;
 using FamilyDashboard.Web.Services.Weather;
@@ -33,6 +34,10 @@ Directory.CreateDirectory(dataDir);
 var dbPath = Path.Combine(dataDir, "dashboard.db");
 builder.Configuration.AddJsonFile(
     Path.Combine(dataDir, "google-oauth.json"),
+    optional: true,
+    reloadOnChange: false);
+builder.Configuration.AddJsonFile(
+    Path.Combine(dataDir, "home-assistant.json"),
     optional: true,
     reloadOnChange: false);
 builder.Services.AddDataProtection()
@@ -74,11 +79,18 @@ builder.Services.AddHttpClient<ISchoolMenuService, SchoolNutritionAndFitnessMenu
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
+builder.Services.AddHttpClient<IFamilyLocationService, HomeAssistantFamilyLocationService>(client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("FamilyDashboard/1.0 (self-hosted family dashboard)");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+
 // ---- Background refresh workers ----
 builder.Services.AddHostedService<CalendarRefreshWorker>();
 builder.Services.AddHostedService<WeatherRefreshWorker>();
 builder.Services.AddHostedService<PhotoScanWorker>();
 builder.Services.AddHostedService<SchoolMenuRefreshWorker>();
+builder.Services.AddHostedService<FamilyLocationRefreshWorker>();
 
 var app = builder.Build();
 
@@ -239,7 +251,8 @@ using (var scope = app.Services.CreateScope())
     // rather than the class defaults, so existing widgets get the full default object. Braces are
     // doubled because ExecuteSqlRaw formats the string.
     const string defaultSchoolMenuSettings = """'{{"DaysToShow":3,"MenuName":"","MenuTypeId":"","OrganizationId":"1678132657639","ShowSides":true}}'""";
-    const string defaultPhotoSettings = """'{{"AlbumUrl":"","Brightness":100,"ChangeIntervalSeconds":300,"ClickToRotate":false,"HiRes":false,"ShowMeta":false,"Style":"Crop","Transitions":true,"Vignette":false}}'""";
+    const string defaultFamilyLocationSettings = """'{{"EntityIds":"","ShowBattery":true,"Title":"Family"}}'""";
+    const string defaultPhotoSettings ="""'{{"AlbumUrl":"","Brightness":100,"ChangeIntervalSeconds":300,"ClickToRotate":false,"HiRes":false,"ShowMeta":false,"Style":"Crop","Transitions":true,"Vignette":false}}'""";
 
     // Weather display options. Defaults keep the widget's original look (current conditions plus a 5-day forecast).
     foreach (var (column, definition) in new[]
@@ -262,6 +275,7 @@ using (var scope = app.Services.CreateScope())
                  ("WeatherCondensed", "INTEGER NOT NULL DEFAULT 0"),
                  ("PhotoSettings", $"TEXT NOT NULL DEFAULT {defaultPhotoSettings}"),
                  ("SchoolMenuSettings", $"TEXT NOT NULL DEFAULT {defaultSchoolMenuSettings}"),
+                 ("FamilyLocationSettings", $"TEXT NOT NULL DEFAULT {defaultFamilyLocationSettings}"),
              })
     {
         if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))

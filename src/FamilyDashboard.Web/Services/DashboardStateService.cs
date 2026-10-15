@@ -1,4 +1,5 @@
 using FamilyDashboard.Web.Services.Calendar;
+using FamilyDashboard.Web.Services.FamilyLocations;
 using FamilyDashboard.Web.Services.Photos;
 using FamilyDashboard.Web.Services.SchoolMenus;
 using FamilyDashboard.Web.Services.Weather;
@@ -24,7 +25,11 @@ public class DashboardStateService
     private readonly Dictionary<int, AlbumSyncStatus> _albumStatus = [];
     private readonly Dictionary<string, SchoolMenuDto> _schoolMenus = [];
 
+    private IReadOnlyList<FamilyMemberDto> _familyMembers = [];
+    private FamilyLocationStatus? _familyStatus;
+
     public event Action? CalendarChanged;
+    public event Action? FamilyLocationsChanged;
     public event Action? WeatherChanged;
     public event Action? PhotosChanged;
     public event Action? SchoolMenusChanged;
@@ -73,6 +78,25 @@ public class DashboardStateService
     {
         lock (_lock) { _schoolMenus[menu.MenuTypeId] = menu; }
         SchoolMenusChanged?.Invoke();
+    }
+
+    public (IReadOnlyList<FamilyMemberDto> Members, FamilyLocationStatus? Status) GetFamilyLocations()
+    {
+        lock (_lock) { return (_familyMembers, _familyStatus); }
+    }
+
+    /// <summary>Records a poll outcome; <paramref name="members"/> null keeps the locations already shown.</summary>
+    public void UpdateFamilyLocations(IReadOnlyList<FamilyMemberDto>? members, FamilyLocationStatus status)
+    {
+        lock (_lock)
+        {
+            if (members is not null)
+            {
+                _familyMembers = members;
+            }
+            _familyStatus = status;
+        }
+        FamilyLocationsChanged?.Invoke();
     }
 
     public void UpdatePhotos(List<string> paths)

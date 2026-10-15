@@ -1,0 +1,6 @@
+{
+  "HomeAssistant": {
+    "BaseUrl": "http://homeassistant.local:8123",
+    "Token": "your-long-lived-access-token"
+  }
+}

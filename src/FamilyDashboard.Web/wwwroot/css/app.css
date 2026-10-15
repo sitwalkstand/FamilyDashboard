@@ -799,6 +799,98 @@ html, body {
     font-style: italic;
 }
 
+.family-widget {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: .35rem .45rem .45rem;
+    background: #050505;
+    text-shadow: none;
+}
+
+.family-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 .2rem .3rem;
+    border-bottom: 1px solid #262626;
+}
+
+.family-header h2 {
+    margin: 0;
+    font-size: clamp(.9rem, 1.5vw, 1.15rem);
+    font-weight: 600;
+}
+
+.family-header i {
+    margin-right: .3rem;
+    color: #e7bb64;
+}
+
+.family-stale {
+    color: #8a8a8a;
+    font-size: .8rem;
+    font-style: italic;
+}
+
+.family-list {
+    display: grid;
+    flex: 1;
+    min-height: 0;
+    align-content: start;
+    gap: .35rem;
+    margin: 0;
+    padding: .5rem 0 0;
+    list-style: none;
+    overflow: hidden;
+}
+
+.family-member {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: .6rem;
+    padding: .3rem .5rem;
+    border-left: 3px solid #3b3b3b;
+}
+
+.family-member.is-home {
+    border-left-color: #e7bb64;
+}
+
+.family-name {
+    color: #f4f4f4;
+    font-size: 1.15rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.family-place {
+    grid-column: 1;
+    color: #c9c9c9;
+    font-size: 1rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.family-place i {
+    margin-right: .3rem;
+}
+
+.family-battery {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    color: #c9c9c9;
+    font-size: .95rem;
+}
+
+.family-battery.is-low {
+    color: #e5634d;
+}
+
 .photo-widget {
     position: relative;
     height: 100%;

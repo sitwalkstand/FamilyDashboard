@@ -38,6 +38,7 @@ public class DashboardWidget
     public bool WeatherCondensed { get; set; }
     public PhotoWidgetSettings PhotoSettings { get; set; } = new();
     public SchoolMenuWidgetSettings SchoolMenuSettings { get; set; } = new();
+    public FamilyLocationsWidgetSettings FamilyLocationSettings { get; set; } = new();
 
     public DashboardScreen? Screen { get; set; }
 }
