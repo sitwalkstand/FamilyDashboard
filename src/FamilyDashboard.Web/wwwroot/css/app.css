@@ -891,6 +891,95 @@ html, body {
     color: #e5634d;
 }
 
+.family-map-widget {
+    position: relative;
+    height: 100%;
+    background: #050505;
+    text-shadow: none;
+}
+
+.family-map-canvas {
+    position: absolute;
+    inset: 0;
+    background: #050505;
+}
+
+.family-map-loading {
+    position: absolute;
+    inset: 0;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.family-map-stale {
+    position: absolute;
+    top: .4rem;
+    right: .5rem;
+    z-index: 500;
+    padding: .1rem .4rem;
+    border-radius: .3rem;
+    background: rgba(5, 5, 5, .75);
+}
+
+.family-map-canvas .leaflet-control-attribution {
+    background: rgba(5, 5, 5, .65);
+    color: #8a8a8a;
+    font-size: .6rem;
+}
+
+.family-map-canvas .leaflet-control-attribution a {
+    color: #a8a8a8;
+}
+
+.family-pin-wrap {
+    background: none;
+    border: 0;
+}
+
+.family-pin {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    transform: translate(-1.1rem, -1.1rem);
+    white-space: nowrap;
+}
+
+.family-pin-initials {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.2rem;
+    height: 2.2rem;
+    border: 2px solid #f4f4f4;
+    border-radius: 50%;
+    background: #3b3b3b;
+    color: #f4f4f4;
+    font-size: .95rem;
+    font-weight: 700;
+    box-shadow: 0 0 6px rgba(0, 0, 0, .7);
+}
+
+.family-pin.is-home .family-pin-initials {
+    background: #e7bb64;
+    border-color: #050505;
+    color: #050505;
+}
+
+.family-pin-name {
+    padding: .1rem .4rem;
+    border-radius: .3rem;
+    background: rgba(5, 5, 5, .8);
+    color: #f4f4f4;
+    font-size: .9rem;
+}
+
 .photo-widget {
     position: relative;
     height: 100%;

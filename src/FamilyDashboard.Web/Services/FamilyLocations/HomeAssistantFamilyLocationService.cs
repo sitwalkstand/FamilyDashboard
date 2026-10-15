@@ -61,7 +61,9 @@ public class HomeAssistantFamilyLocationService(HttpClient http, IConfiguration 
                 GetInt(attributes, "battery_level") ?? GetInt(attributes, "battery"),
                 GetBool(attributes, "battery_charging"),
                 GetBool(attributes, "driving"),
-                GetDate(attributes, "last_seen") ?? GetDate(entity, "last_updated")));
+                GetDate(attributes, "last_seen") ?? GetDate(entity, "last_updated"),
+                GetDouble(attributes, "latitude"),
+                GetDouble(attributes, "longitude")));
         }
 
         return members.OrderBy(member => member.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
@@ -107,6 +109,12 @@ public class HomeAssistantFamilyLocationService(HttpClient http, IConfiguration 
             _ => null
         };
     }
+
+    private static double? GetDouble(JsonElement element, string property) =>
+        element.ValueKind == JsonValueKind.Object && element.TryGetProperty(property, out var value)
+        && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number)
+            ? number
+            : null;
 
     private static bool? GetBool(JsonElement element, string property)
     {

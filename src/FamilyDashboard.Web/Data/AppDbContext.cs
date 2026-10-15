@@ -26,5 +26,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         });
         modelBuilder.Entity<DashboardWidget>().ComplexProperty(widget => widget.SchoolMenuSettings, settings => settings.ToJson());
         modelBuilder.Entity<DashboardWidget>().ComplexProperty(widget => widget.FamilyLocationSettings, settings => settings.ToJson());
+        modelBuilder.Entity<DashboardWidget>().ComplexProperty(widget => widget.FamilyMapSettings, settings => settings.ToJson());
     }
 }

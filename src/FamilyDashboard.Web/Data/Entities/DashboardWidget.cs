@@ -39,6 +39,8 @@ public class DashboardWidget
     public PhotoWidgetSettings PhotoSettings { get; set; } = new();
     public SchoolMenuWidgetSettings SchoolMenuSettings { get; set; } = new();
     public FamilyLocationsWidgetSettings FamilyLocationSettings { get; set; } = new();
+    /// <summary>Family Map widgets reuse the Family Locations options (members and title); battery is unused.</summary>
+    public FamilyLocationsWidgetSettings FamilyMapSettings { get; set; } = new() { Title = "Family map" };
 
     public DashboardScreen? Screen { get; set; }
 }

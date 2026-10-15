@@ -568,9 +568,10 @@
                         </div>
                         <div class="modal-note">Set for Frederick County Public Schools (VA). Another district that publishes menus on School Nutrition and Fitness works too: use the number after <code>sid=</code> in its menu site link.</div>
                     }
-                    else if (SelectedWidget.WidgetType == "FamilyLocations")
+                    else if (SelectedWidget.WidgetType is "FamilyLocations" or "FamilyMap")
                     {
-                        var familySettings = SelectedWidget.FamilyLocationSettings;
+                        var isFamilyMap = SelectedWidget.WidgetType == "FamilyMap";
+                        var familySettings = isFamilyMap ? SelectedWidget.FamilyMapSettings : SelectedWidget.FamilyLocationSettings;
                         var selectedIds = familySettings.EntityIdList;
                         <div class="property-section-title">Family members</div>
                         @if (_isLoadingTrackers)
@@ -596,7 +597,14 @@
                         <div class="modal-note">Trackers come from the Life360 integration in Home Assistant. Home Assistant's address and access token are set in <code>home-assistant.json</code> in the data directory.</div>
                         <button type="button" class="secondary-button" @onclick="LoadFamilyTrackers">Reload trackers</button>
                         <label>Title<input id="family-title" @bind="familySettings.Title" /></label>
-                        <label class="checkbox-label"><input type="checkbox" @bind="familySettings.ShowBattery" /> Show battery level</label>
+                        @if (isFamilyMap)
+                        {
+                            <div class="modal-note">This map shows each person's exact position to anyone who can open the dashboard. Only add it on a network you trust.</div>
+                        }
+                        else
+                        {
+                            <label class="checkbox-label"><input type="checkbox" @bind="familySettings.ShowBattery" /> Show battery level</label>
+                        }
                     }
                     else if (SelectedWidget.WidgetType == "Weather")
                     {
@@ -703,7 +711,7 @@
     private List<CalendarFeed> _feeds = [];
     private List<DashboardScreen> _screens = [];
     private CalendarFeed _newFeed = new();
-    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos", "SchoolMenu", "FamilyLocations"];
+    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos", "SchoolMenu", "FamilyLocations", "FamilyMap"];
     private static readonly string[] WeatherForecastModes = ["None", "Daily", "Hourly"];
     private static readonly ResizeHandle[] ResizeHandles = Enum.GetValues<ResizeHandle>();
     private int _selectedScreenId;
@@ -905,7 +913,7 @@
         {
             await LoadSchoolMenuTypes(widget.SchoolMenuSettings.OrganizationId);
         }
-        else if (SelectedWidget is { WidgetType: "FamilyLocations" })
+        else if (SelectedWidget is { WidgetType: "FamilyLocations" or "FamilyMap" })
         {
             await LoadFamilyTrackers();
         }
@@ -1137,6 +1145,7 @@
         "Photos" => "▧",
         "SchoolMenu" => "≡",
         "FamilyLocations" => "⌖",
+        "FamilyMap" => "◎",
         _ => "□"
     };
 
@@ -1144,6 +1153,7 @@
     {
         "SchoolMenu" => "School menu",
         "FamilyLocations" => "Family locations",
+        "FamilyMap" => "Family map",
         _ => type
     };
 
@@ -1300,7 +1310,7 @@
         {
             await LoadSchoolMenuTypes(widget.SchoolMenuSettings.OrganizationId);
         }
-        else if (widgetType == "FamilyLocations")
+        else if (widgetType is "FamilyLocations" or "FamilyMap")
         {
             await LoadFamilyTrackers();
         }
