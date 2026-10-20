@@ -268,6 +268,14 @@ html, body {
     font-weight: 300;
     line-height: .9;
     letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Seconds and AM/PM are smaller so the time stays on one line in narrow widgets. */
+.clock-widget .time .seconds,
+.clock-widget .time .period {
+    font-size: .45em;
+    opacity: .8;
 }
 
 .clock-widget .date {
@@ -287,6 +295,16 @@ html, body {
 
 .configured-widget .clock-widget .date {
     margin-top: 0;
+}
+
+/* The time keeps to one line, shrinking with the widget's width when it is too narrow for the full size. */
+.configured-widget.widget-clock {
+    container-type: inline-size;
+}
+
+.configured-widget .clock-widget .time {
+    font-size: min(clamp(3.75rem, 8vw, 7rem), 20cqi);
+    white-space: nowrap;
 }
 
 .weather-widget .current-temp {

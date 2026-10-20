@@ -1,7 +1,7 @@
 @implements IDisposable
 
 <div class="widget clock-widget">
-    <div class="time">@_now.ToString("h:mm tt")</div>
+    <div class="time">@_now.ToString("h:mm")<span class="seconds">@_now.ToString(":ss")</span> <span class="period">@_now.ToString("tt")</span></div>
     <div class="date">@_now.ToString("dddd, MMMM d")</div>
 </div>
 
