@@ -711,6 +711,27 @@ html, body {
     color: #777;
 }
 
+.calendar-day-past {
+    opacity: .4;
+}
+
+.calendar-day-today {
+    background: #22282b;
+    box-shadow: inset 0 4px 0 #f2b84b;
+}
+
+.calendar-day-today .calendar-day-number {
+    padding-top: .15rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #f2b84b;
+}
+
+.calendar-weekday-today {
+    color: #f2b84b;
+    font-weight: 800;
+}
+
 .calendar-event {
     overflow: hidden;
     margin: 0 -.05rem .2rem;
