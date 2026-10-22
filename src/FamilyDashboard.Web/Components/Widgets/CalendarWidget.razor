@@ -26,9 +26,9 @@
     else
     {
         <div class="calendar-weekdays" aria-hidden="true">
-            @foreach (var dayName in DayNames)
+            @for (var dayIndex = 0; dayIndex < DayNames.Length; dayIndex++)
             {
-                <span>@dayName</span>
+                <span class="@(dayIndex == (int)DateTime.Today.DayOfWeek ? "calendar-weekday-today" : "")">@DayNames[dayIndex]</span>
             }
         </div>
         <div class="calendar-grid" style="--calendar-week-count:@Weeks.Count">
@@ -36,7 +36,7 @@
             {
                 @foreach (var day in week)
                 {
-                    <div class="calendar-day @(day.IsCurrentMonth ? "" : "calendar-day-muted")">
+                    <div class="calendar-day @DayClass(day)">
                         <span class="calendar-day-number">@day.Date.Day</span>
                         @foreach (var ev in day.Events)
                         {
@@ -121,6 +121,27 @@
                 .Where(calendar => selectedNames.Length == 0 || selectedNames.Contains(calendar.CalendarName, StringComparer.OrdinalIgnoreCase))
                 .OrderBy(calendar => calendar.CalendarName, StringComparer.OrdinalIgnoreCase);
         }
+    }
+
+    private static string DayClass(CalendarDay day)
+    {
+        var today = DateTime.Today;
+        var classes = new List<string>();
+        if (!day.IsCurrentMonth)
+        {
+            classes.Add("calendar-day-muted");
+        }
+
+        if (day.Date < today)
+        {
+            classes.Add("calendar-day-past");
+        }
+        else if (day.Date == today)
+        {
+            classes.Add("calendar-day-today");
+        }
+
+        return string.Join(' ', classes);
     }
 
     public void Dispose() => State.CalendarChanged -= OnChanged;
