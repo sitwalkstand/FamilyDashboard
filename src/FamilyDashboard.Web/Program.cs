@@ -253,6 +253,7 @@ using (var scope = app.Services.CreateScope())
     const string defaultSchoolMenuSettings = """'{{"DaysToShow":3,"MenuName":"","MenuTypeId":"","OrganizationId":"1678132657639","ShowSides":true}}'""";
     const string defaultFamilyLocationSettings = """'{{"EntityIds":"","ShowBattery":true,"Title":"Family"}}'""";
     const string defaultFamilyMapSettings = """'{{"EntityIds":"","ShowBattery":true,"Title":"Family map"}}'""";
+    const string defaultCountdownSettings = """'{{"EndsAt":"2027-01-01T00:00:00","Title":"Countdown"}}'""";
     const string defaultPhotoSettings ="""'{{"AlbumUrl":"","Brightness":100,"ChangeIntervalSeconds":300,"ClickToRotate":false,"HiRes":false,"ShowMeta":false,"Style":"Crop","Transitions":true,"Vignette":false}}'""";
 
     // Weather display options. Defaults keep the widget's original look (current conditions plus a 5-day forecast).
@@ -278,6 +279,7 @@ using (var scope = app.Services.CreateScope())
                  ("SchoolMenuSettings", $"TEXT NOT NULL DEFAULT {defaultSchoolMenuSettings}"),
                  ("FamilyLocationSettings", $"TEXT NOT NULL DEFAULT {defaultFamilyLocationSettings}"),
                  ("FamilyMapSettings", $"TEXT NOT NULL DEFAULT {defaultFamilyMapSettings}"),
+                 ("CountdownSettings", $"TEXT NOT NULL DEFAULT {defaultCountdownSettings}"),
              })
     {
         if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))
