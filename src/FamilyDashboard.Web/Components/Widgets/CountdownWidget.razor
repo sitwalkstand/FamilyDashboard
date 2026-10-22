@@ -1,0 +1,62 @@
+@implements IDisposable
+@using FamilyDashboard.Web.Data.Entities
+
+<div class="widget countdown-widget">
+    <h2 class="countdown-title">@(string.IsNullOrWhiteSpace(Settings.Title) ? "Countdown" : Settings.Title)</h2>
+    @if (_remaining > TimeSpan.Zero)
+    {
+        <div class="countdown-units">
+            @if (_remaining.Days > 0)
+            {
+                <div class="countdown-unit"><span class="countdown-value">@_remaining.Days</span><span class="countdown-label">@(_remaining.Days == 1 ? "day" : "days")</span></div>
+            }
+            <div class="countdown-unit"><span class="countdown-value">@_remaining.Hours.ToString("00")</span><span class="countdown-label">hrs</span></div>
+            <div class="countdown-unit"><span class="countdown-value">@_remaining.Minutes.ToString("00")</span><span class="countdown-label">min</span></div>
+            <div class="countdown-unit"><span class="countdown-value">@_remaining.Seconds.ToString("00")</span><span class="countdown-label">sec</span></div>
+        </div>
+    }
+    else
+    {
+        <div class="countdown-done">It's here!</div>
+    }
+    <div class="countdown-target">@Settings.EndsAt.ToString("ddd, MMM d · h:mm tt")</div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public DashboardWidget Widget { get; set; } = default!;
+
+    private TimeSpan _remaining;
+    private Timer? _timer;
+
+    private CountdownWidgetSettings Settings => Widget.CountdownSettings;
+
+    protected override void OnInitialized()
+    {
+        _timer = new Timer(_ =>
+        {
+            Update();
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    // Runs on each render too, so a new end time from admin shows without waiting for the next tick.
+    protected override void OnParametersSet() => Update();
+
+    // The end time is entered as Eastern wall-clock time, so convert it with the dashboard's zone
+    // rather than the server's, which depends on the container's TZ setting. A time skipped by the
+    // spring-forward change (2:00-2:59 AM) can't be converted, so it moves an hour later.
+    private void Update()
+    {
+        var endsAt = DateTime.SpecifyKind(Settings.EndsAt, DateTimeKind.Unspecified);
+        if (DashboardTimeZone.Zone.IsInvalidTime(endsAt))
+        {
+            endsAt = endsAt.AddHours(1);
+        }
+
+        var endsAtUtc = TimeZoneInfo.ConvertTimeToUtc(endsAt, DashboardTimeZone.Zone);
+        _remaining = endsAtUtc - DateTime.UtcNow;
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

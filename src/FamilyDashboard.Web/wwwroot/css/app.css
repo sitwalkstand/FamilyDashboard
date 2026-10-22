@@ -838,6 +838,63 @@ html, body {
     font-style: italic;
 }
 
+/* Countdown: sized from the widget's width so four units fit on one line in a narrow widget. */
+.configured-widget.widget-countdown {
+    container-type: inline-size;
+}
+
+.countdown-widget {
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, .55);
+}
+
+.countdown-title {
+    margin: 0;
+    font-size: min(clamp(1.2rem, 2.4vw, 2rem), 9cqi);
+    font-weight: 600;
+    line-height: 1.15;
+}
+
+.countdown-units {
+    display: flex;
+    gap: min(1.5rem, 4cqi);
+    align-items: flex-start;
+}
+
+.countdown-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.countdown-value {
+    font-size: min(clamp(3rem, 7vw, 6rem), 15cqi);
+    font-weight: 300;
+    line-height: .95;
+    font-variant-numeric: tabular-nums;
+}
+
+.countdown-label {
+    color: #c9c9c9;
+    font-size: min(clamp(.8rem, 1.4vw, 1.1rem), 4.5cqi);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.countdown-done {
+    color: #f2b84b;
+    font-size: min(clamp(2.5rem, 6vw, 5rem), 14cqi);
+    font-weight: 600;
+    line-height: 1;
+}
+
+.countdown-target {
+    color: #c9c9c9;
+    font-size: min(clamp(.9rem, 1.6vw, 1.3rem), 5cqi);
+}
+
 .family-widget {
     height: 100%;
     display: flex;

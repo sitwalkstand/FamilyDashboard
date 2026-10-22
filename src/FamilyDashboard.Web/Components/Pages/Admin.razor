@@ -606,6 +606,13 @@
                             <label class="checkbox-label"><input type="checkbox" @bind="familySettings.ShowBattery" /> Show battery level</label>
                         }
                     }
+                    else if (SelectedWidget.WidgetType == "Countdown")
+                    {
+                        var countdownSettings = SelectedWidget.CountdownSettings;
+                        <label>Title<input id="countdown-title" placeholder="Beach trip" @bind="countdownSettings.Title" /></label>
+                        <label>Counts down to<input id="countdown-ends-at" type="datetime-local" @bind="countdownSettings.EndsAt" /></label>
+                        <div class="modal-note">Eastern time. When it reaches zero the widget shows "It's here!" until you change the date or remove it.</div>
+                    }
                     else if (SelectedWidget.WidgetType == "Weather")
                     {
                         var showCurrent = SelectedWidget.WeatherShowCurrent;
@@ -711,7 +718,7 @@
     private List<CalendarFeed> _feeds = [];
     private List<DashboardScreen> _screens = [];
     private CalendarFeed _newFeed = new();
-    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos", "SchoolMenu", "FamilyLocations", "FamilyMap"];
+    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos", "SchoolMenu", "FamilyLocations", "FamilyMap", "Countdown"];
     private static readonly string[] WeatherForecastModes = ["None", "Daily", "Hourly"];
     private static readonly ResizeHandle[] ResizeHandles = Enum.GetValues<ResizeHandle>();
     private int _selectedScreenId;
@@ -1146,6 +1153,7 @@
         "SchoolMenu" => "≡",
         "FamilyLocations" => "⌖",
         "FamilyMap" => "◎",
+        "Countdown" => "⧗",
         _ => "□"
     };
 
@@ -1341,6 +1349,8 @@
             widget.WeatherForecastMode = "Daily";
         }
         widget.WeatherForecastLength = NormalizeWeatherForecastLength(widget.WeatherForecastMode, widget.WeatherForecastLength);
+        var countdown = widget.CountdownSettings;
+        countdown.Title = countdown.Title.Trim();
         widget.PositionX = Math.Clamp(widget.PositionX, 1, 12);
         widget.PositionY = Math.Clamp(widget.PositionY, 1, 12);
         widget.Width = Math.Clamp(widget.Width, 1, 13 - widget.PositionX);
