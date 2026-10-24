@@ -1,5 +1,6 @@
 using FamilyDashboard.Web.Services.Calendar;
 using FamilyDashboard.Web.Services.FamilyLocations;
+using FamilyDashboard.Web.Services.HomeStatus;
 using FamilyDashboard.Web.Services.Photos;
 using FamilyDashboard.Web.Services.SchoolMenus;
 using FamilyDashboard.Web.Services.Weather;
@@ -28,8 +29,12 @@ public class DashboardStateService
     private IReadOnlyList<FamilyMemberDto> _familyMembers = [];
     private FamilyLocationStatus? _familyStatus;
 
+    private IReadOnlyDictionary<string, HomeEntityDto> _homeEntities = new Dictionary<string, HomeEntityDto>();
+    private HomeStatusStatus? _homeStatus;
+
     public event Action? CalendarChanged;
     public event Action? FamilyLocationsChanged;
+    public event Action? HomeStatusChanged;
     public event Action? WeatherChanged;
     public event Action? PhotosChanged;
     public event Action? SchoolMenusChanged;
@@ -97,6 +102,26 @@ public class DashboardStateService
             _familyStatus = status;
         }
         FamilyLocationsChanged?.Invoke();
+    }
+
+    /// <summary>Home Assistant entities by entity id, from the last successful poll.</summary>
+    public (IReadOnlyDictionary<string, HomeEntityDto> Entities, HomeStatusStatus? Status) GetHomeStatus()
+    {
+        lock (_lock) { return (_homeEntities, _homeStatus); }
+    }
+
+    /// <summary>Records a poll outcome; <paramref name="entities"/> null keeps the states already shown.</summary>
+    public void UpdateHomeStatus(IReadOnlyList<HomeEntityDto>? entities, HomeStatusStatus status)
+    {
+        lock (_lock)
+        {
+            if (entities is not null)
+            {
+                _homeEntities = entities.ToDictionary(entity => entity.EntityId, StringComparer.OrdinalIgnoreCase);
+            }
+            _homeStatus = status;
+        }
+        HomeStatusChanged?.Invoke();
     }
 
     public void UpdatePhotos(List<string> paths)

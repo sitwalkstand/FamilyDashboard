@@ -987,6 +987,150 @@ html, body {
     color: #e5634d;
 }
 
+/* Home Status: what needs attention from Home Assistant, then status tiles for chosen entities. */
+/* Sized to its content (other widgets fill their grid area), so a short "All clear" isn't a tall black box. */
+.configured-widget > .home-status-widget {
+    height: auto;
+}
+
+.home-status-widget {
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    padding: .35rem .45rem .45rem;
+    background: #050505;
+    text-shadow: none;
+}
+
+.home-status-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 0 .2rem .3rem;
+    border-bottom: 1px solid #262626;
+}
+
+.home-status-header h2 {
+    margin: 0;
+    font-size: clamp(.9rem, 1.5vw, 1.15rem);
+    font-weight: 600;
+}
+
+.home-status-header i {
+    margin-right: .3rem;
+    color: #f2b84b;
+}
+
+.home-status-count {
+    min-width: 1.5rem;
+    padding: 0 .45rem;
+    border-radius: 999px;
+    background: #f2b84b;
+    color: #050505;
+    font-size: .85rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.home-status-stale,
+.home-status-note {
+    color: #8a8a8a;
+    font-size: .85rem;
+    font-style: italic;
+}
+
+.home-status-clear {
+    padding: .45rem .55rem;
+    background: #0f0f0f;
+    color: #8bc99a;
+    font-size: 1.1rem;
+}
+
+.home-status-clear i {
+    margin-right: .35rem;
+}
+
+.home-status-attention {
+    display: grid;
+    gap: .3rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.home-status-attention li {
+    padding: .35rem .55rem;
+    border-left: 4px solid #62b9c5;
+    background: #0f0f0f;
+    color: #f4f4f4;
+    font-size: 1.1rem;
+    line-height: 1.25;
+}
+
+.home-status-attention li i {
+    width: 1.3rem;
+    margin-right: .3rem;
+    color: #62b9c5;
+    text-align: center;
+}
+
+.home-status-attention .sev-alert { border-left-color: #ef5350; }
+.home-status-attention .sev-alert i { color: #ef5350; }
+.home-status-attention .sev-warning { border-left-color: #f2b84b; }
+.home-status-attention .sev-warning i { color: #f2b84b; }
+
+.home-status-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: .35rem;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.home-status-tile {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    min-width: 0;
+    padding: .45rem .55rem;
+    background: #0f0f0f;
+}
+
+.home-status-tile > i {
+    flex: 0 0 1.6rem;
+    color: #9aa5a9;
+    font-size: 1.35rem;
+    text-align: center;
+}
+
+.home-status-tile > div {
+    display: grid;
+    min-width: 0;
+}
+
+.home-status-name {
+    overflow: hidden;
+    color: #c9c9c9;
+    font-size: .85rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.home-status-value {
+    overflow: hidden;
+    color: #f4f4f4;
+    font-size: 1.15rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.home-status-tile.tone-warn > i,
+.home-status-tile.tone-warn .home-status-value { color: #f2b84b; }
+.home-status-tile.tone-alert > i,
+.home-status-tile.tone-alert .home-status-value { color: #ef5350; }
+.home-status-tile.tone-off { opacity: .5; }
+
 .family-map-widget {
     position: relative;
     height: 100%;
@@ -2286,6 +2430,40 @@ html, body {
     border: 1px solid #cdd5d1;
     border-radius: 3px;
     background: #fff;
+}
+
+.home-entity-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+}
+
+.home-entity-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .15rem .25rem .15rem .6rem;
+    border: 1px solid #c8d3d6;
+    border-radius: 999px;
+    background: #eef3f4;
+    color: #26333a;
+    font-size: .85rem;
+}
+
+.home-entity-chip button {
+    border: 0;
+    background: transparent;
+    color: #5b6a70;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.home-entity-picker {
+    display: grid;
+    max-height: 16rem;
+    overflow-y: auto;
+    padding-right: .25rem;
 }
 
 .modal-note {

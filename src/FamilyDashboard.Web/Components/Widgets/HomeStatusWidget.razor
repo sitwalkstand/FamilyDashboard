@@ -1,0 +1,101 @@
+@implements IDisposable
+@inject DashboardStateService State
+@using FamilyDashboard.Web.Data.Entities
+@using FamilyDashboard.Web.Services.HomeStatus
+
+<div class="widget home-status-widget">
+    <div class="home-status-header">
+        <h2><i class="fa-solid fa-house" aria-hidden="true"></i> @(string.IsNullOrWhiteSpace(Settings.Title) ? "Home" : Settings.Title)</h2>
+        @if (_stale)
+        {
+            <span class="home-status-stale" title="@_status?.Message">Not updating</span>
+        }
+        else if (Attention is { Count: > 0 } count)
+        {
+            <span class="home-status-count">@count.Count</span>
+        }
+    </div>
+    @if (_entities.Count == 0)
+    {
+        <div class="loading">@(_status is { Succeeded: false } ? "Can't reach Home Assistant" : "Loading…")</div>
+    }
+    else
+    {
+        @if (Settings.ShowAttention)
+        {
+            @if (Attention is null)
+            {
+                <div class="home-status-note">@Settings.AttentionEntityId isn't in Home Assistant yet</div>
+            }
+            else if (Attention.Count == 0)
+            {
+                <div class="home-status-clear"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> All clear</div>
+            }
+            else
+            {
+                <ul class="home-status-attention">
+                    @foreach (var item in Attention)
+                    {
+                        <li class="sev-@item.Severity"><i class="@HomeStateFormatter.AttentionIcon(item)" aria-hidden="true"></i> @item.Message</li>
+                    }
+                </ul>
+            }
+        }
+        @if (Settings.EntityIdList.Count > 0)
+        {
+            <div class="home-status-tiles">
+                @foreach (var entityId in Settings.EntityIdList)
+                {
+                    @if (_entities.GetValueOrDefault(entityId) is { } entity)
+                    {
+                        var tile = HomeStateFormatter.Describe(entity);
+                        <div class="home-status-tile @(tile.Tone.Length > 0 ? "tone-" + tile.Tone : "")">
+                            <i class="@tile.Icon" aria-hidden="true"></i>
+                            <div>
+                                <span class="home-status-name">@entity.Name</span>
+                                <span class="home-status-value">@tile.Text</span>
+                            </div>
+                        </div>
+                    }
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public DashboardWidget Widget { get; set; } = default!;
+
+    private IReadOnlyDictionary<string, HomeEntityDto> _entities = new Dictionary<string, HomeEntityDto>();
+    private HomeStatusStatus? _status;
+    private bool _stale;
+
+    private HomeStatusWidgetSettings Settings => Widget.HomeStatusSettings;
+
+    // Null when the attention sensor doesn't exist, so the widget can say so instead of claiming "All clear".
+    private IReadOnlyList<AttentionItemDto>? Attention =>
+        Settings.ShowAttention && _entities.GetValueOrDefault(Settings.AttentionEntityId) is { } sensor
+            ? sensor.AttentionItems ?? []
+            : null;
+
+    protected override void OnInitialized()
+    {
+        Load();
+        State.HomeStatusChanged += OnChanged;
+    }
+
+    private void Load()
+    {
+        (_entities, _status) = State.GetHomeStatus();
+        _stale = _status is { Succeeded: false } && _entities.Count > 0;
+    }
+
+    private void OnChanged()
+    {
+        Load();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => State.HomeStatusChanged -= OnChanged;
+}

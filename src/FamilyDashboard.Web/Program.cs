@@ -4,6 +4,7 @@ using FamilyDashboard.Web.Data.Entities;
 using FamilyDashboard.Web.Services;
 using FamilyDashboard.Web.Services.Calendar;
 using FamilyDashboard.Web.Services.FamilyLocations;
+using FamilyDashboard.Web.Services.HomeStatus;
 using FamilyDashboard.Web.Services.Photos;
 using FamilyDashboard.Web.Services.SchoolMenus;
 using FamilyDashboard.Web.Services.Weather;
@@ -85,12 +86,19 @@ builder.Services.AddHttpClient<IFamilyLocationService, HomeAssistantFamilyLocati
     client.Timeout = TimeSpan.FromSeconds(15);
 });
 
+builder.Services.AddHttpClient<IHomeStatusService, HomeAssistantStatusService>(client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("FamilyDashboard/1.0 (self-hosted family dashboard)");
+    client.Timeout = TimeSpan.FromSeconds(15);
+});
+
 // ---- Background refresh workers ----
 builder.Services.AddHostedService<CalendarRefreshWorker>();
 builder.Services.AddHostedService<WeatherRefreshWorker>();
 builder.Services.AddHostedService<PhotoScanWorker>();
 builder.Services.AddHostedService<SchoolMenuRefreshWorker>();
 builder.Services.AddHostedService<FamilyLocationRefreshWorker>();
+builder.Services.AddHostedService<HomeStatusRefreshWorker>();
 
 var app = builder.Build();
 
@@ -254,6 +262,7 @@ using (var scope = app.Services.CreateScope())
     const string defaultFamilyLocationSettings = """'{{"EntityIds":"","ShowBattery":true,"Title":"Family"}}'""";
     const string defaultFamilyMapSettings = """'{{"EntityIds":"","ShowBattery":true,"Title":"Family map"}}'""";
     const string defaultCountdownSettings = """'{{"EndsAt":"2027-01-01T00:00:00","Title":"Countdown"}}'""";
+    const string defaultHomeStatusSettings = """'{{"AttentionEntityId":"sensor.needs_attention","EntityIds":"","ShowAttention":true,"Title":"Home"}}'""";
     const string defaultPhotoSettings ="""'{{"AlbumUrl":"","Brightness":100,"ChangeIntervalSeconds":300,"ClickToRotate":false,"HiRes":false,"ShowMeta":false,"Style":"Crop","Transitions":true,"Vignette":false}}'""";
 
     // Weather display options. Defaults keep the widget's original look (current conditions plus a 5-day forecast).
@@ -280,6 +289,7 @@ using (var scope = app.Services.CreateScope())
                  ("FamilyLocationSettings", $"TEXT NOT NULL DEFAULT {defaultFamilyLocationSettings}"),
                  ("FamilyMapSettings", $"TEXT NOT NULL DEFAULT {defaultFamilyMapSettings}"),
                  ("CountdownSettings", $"TEXT NOT NULL DEFAULT {defaultCountdownSettings}"),
+                 ("HomeStatusSettings", $"TEXT NOT NULL DEFAULT {defaultHomeStatusSettings}"),
              })
     {
         if (!widgetColumns.Contains(column, StringComparer.OrdinalIgnoreCase))

@@ -4,6 +4,7 @@
 @using FamilyDashboard.Web.Services
 @using FamilyDashboard.Web.Services.Calendar
 @using FamilyDashboard.Web.Services.FamilyLocations
+@using FamilyDashboard.Web.Services.HomeStatus
 @using FamilyDashboard.Web.Services.Photos
 @using FamilyDashboard.Web.Services.SchoolMenus
 @using FamilyDashboard.Web.Services.Weather
@@ -20,6 +21,7 @@
 @inject IWeatherService WeatherService
 @inject ISchoolMenuService SchoolMenuService
 @inject IFamilyLocationService FamilyLocationService
+@inject IHomeStatusService HomeStatusService
 @implements IAsyncDisposable
 
 <div class="admin-page">
@@ -606,6 +608,59 @@
                             <label class="checkbox-label"><input type="checkbox" @bind="familySettings.ShowBattery" /> Show battery level</label>
                         }
                     }
+                    else if (SelectedWidget.WidgetType == "HomeStatus")
+                    {
+                        var homeSettings = SelectedWidget.HomeStatusSettings;
+                        var selectedEntityIds = homeSettings.EntityIdList;
+                        <label>Title<input id="home-status-title" @bind="homeSettings.Title" /></label>
+                        <label class="checkbox-label"><input type="checkbox" @bind="homeSettings.ShowAttention" /> Show what needs attention</label>
+                        <label>Attention sensor<input id="home-status-attention" @bind="homeSettings.AttentionEntityId" disabled="@(!homeSettings.ShowAttention)" /></label>
+                        <div class="modal-note">The Home Assistant template sensor that lists what needs attention in its <code>items</code> attribute.</div>
+                        <div class="property-section-title">Tiles</div>
+                        @if (selectedEntityIds.Count > 0)
+                        {
+                            <div class="home-entity-chips">
+                                @foreach (var entityId in selectedEntityIds)
+                                {
+                                    var id = entityId;
+                                    <span class="home-entity-chip">
+                                        @(_homeEntities.FirstOrDefault(entity => entity.EntityId.Equals(id, StringComparison.OrdinalIgnoreCase))?.Name ?? id)
+                                        <button type="button" aria-label="@($"Remove {id}")" @onclick="() => ToggleHomeEntity(homeSettings, id, false)">×</button>
+                                    </span>
+                                }
+                            </div>
+                        }
+                        @if (_isLoadingHomeEntities)
+                        {
+                            <div class="modal-note">Loading entities from Home Assistant…</div>
+                        }
+                        else if (_homeEntities.Count == 0)
+                        {
+                            <div class="modal-note">@(_homeEntityMessage ?? "No entities found in Home Assistant.")</div>
+                        }
+                        else
+                        {
+                            <input id="home-status-search" placeholder="Search @_homeEntities.Count entities, e.g. leak or alarm" @bind="_homeEntitySearch" @bind:event="oninput" />
+                            var matches = HomeEntityMatches().ToList();
+                            <div class="home-entity-picker">
+                                @foreach (var entity in matches)
+                                {
+                                    var entityId = entity.EntityId;
+                                    <label class="checkbox-label">
+                                        <input type="checkbox" checked="@selectedEntityIds.Contains(entityId, StringComparer.OrdinalIgnoreCase)"
+                                               @onchange="args => ToggleHomeEntity(homeSettings, entityId, (bool)(args.Value ?? false))" />
+                                        @entity.Name <small>@entityId · @HomeStateFormatter.Describe(entity).Text</small>
+                                    </label>
+                                }
+                            </div>
+                            @if (matches.Count == HomeEntityPickerLimit)
+                            {
+                                <div class="modal-note">Showing the first @HomeEntityPickerLimit. Type to narrow the list.</div>
+                            }
+                        }
+                        <div class="modal-note">Tiles show in the order you pick them. The widget only reads from Home Assistant; it never changes anything.</div>
+                        <button type="button" class="secondary-button" @onclick="LoadHomeEntities">Reload entities</button>
+                    }
                     else if (SelectedWidget.WidgetType == "Countdown")
                     {
                         var countdownSettings = SelectedWidget.CountdownSettings;
@@ -718,7 +773,7 @@
     private List<CalendarFeed> _feeds = [];
     private List<DashboardScreen> _screens = [];
     private CalendarFeed _newFeed = new();
-    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos", "SchoolMenu", "FamilyLocations", "FamilyMap", "Countdown"];
+    private static readonly string[] WidgetTypes = ["Clock", "Weather", "Calendar", "Photos", "SchoolMenu", "FamilyLocations", "FamilyMap", "Countdown", "HomeStatus"];
     private static readonly string[] WeatherForecastModes = ["None", "Daily", "Hourly"];
     private static readonly ResizeHandle[] ResizeHandles = Enum.GetValues<ResizeHandle>();
     private int _selectedScreenId;
@@ -755,6 +810,11 @@
     private IReadOnlyList<FamilyMemberDto> _familyTrackers = [];
     private string? _familyTrackerMessage;
     private bool _isLoadingTrackers;
+    private const int HomeEntityPickerLimit = 60;
+    private IReadOnlyList<HomeEntityDto> _homeEntities = [];
+    private string? _homeEntityMessage;
+    private bool _isLoadingHomeEntities;
+    private string _homeEntitySearch = "";
     private string? _schoolMenuMessage;
 
     // Display shapes offered for the layout preview, as "width:height".
@@ -924,6 +984,58 @@
         {
             await LoadFamilyTrackers();
         }
+        else if (SelectedWidget is { WidgetType: "HomeStatus" })
+        {
+            await LoadHomeEntities();
+        }
+    }
+
+    private async Task LoadHomeEntities()
+    {
+        _homeEntities = [];
+        _homeEntityMessage = null;
+        _homeEntitySearch = "";
+        if (!HomeStatusService.IsConfigured)
+        {
+            _homeEntityMessage = "Home Assistant isn't configured. Add HomeAssistant:BaseUrl and HomeAssistant:Token to home-assistant.json in the data directory, then restart.";
+            return;
+        }
+
+        _isLoadingHomeEntities = true;
+        StateHasChanged();
+        try
+        {
+            _homeEntities = await HomeStatusService.GetEntitiesAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or TaskCanceledException)
+        {
+            _homeEntityMessage = $"Couldn't reach Home Assistant: {ex.Message}";
+        }
+        finally
+        {
+            _isLoadingHomeEntities = false;
+        }
+    }
+
+    // Matches on name or entity id. With no search, the kinds of entity people usually want come first.
+    private IEnumerable<HomeEntityDto> HomeEntityMatches()
+    {
+        var search = _homeEntitySearch.Trim();
+        var matches = search.Length == 0
+            ? _homeEntities.OrderBy(entity => entity.Domain is "person" or "alarm_control_panel" or "lock" or "cover" or "climate" or "binary_sensor" || entity.DeviceClass is not null ? 0 : 1)
+            : _homeEntities.Where(entity => entity.Name.Contains(search, StringComparison.OrdinalIgnoreCase)
+                                            || entity.EntityId.Contains(search, StringComparison.OrdinalIgnoreCase));
+        return matches.Take(HomeEntityPickerLimit);
+    }
+
+    private static void ToggleHomeEntity(HomeStatusWidgetSettings settings, string entityId, bool selected)
+    {
+        var ids = settings.EntityIdList.Where(id => !id.Equals(entityId, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (selected)
+        {
+            ids.Add(entityId);
+        }
+        settings.EntityIds = string.Join(',', ids);
     }
 
     private async Task LoadFamilyTrackers()
@@ -1154,6 +1266,7 @@
         "FamilyLocations" => "⌖",
         "FamilyMap" => "◎",
         "Countdown" => "⧗",
+        "HomeStatus" => "⌂",
         _ => "□"
     };
 
@@ -1162,6 +1275,7 @@
         "SchoolMenu" => "School menu",
         "FamilyLocations" => "Family locations",
         "FamilyMap" => "Family map",
+        "HomeStatus" => "Home status",
         _ => type
     };
 
@@ -1322,6 +1436,10 @@
         {
             await LoadFamilyTrackers();
         }
+        else if (widgetType == "HomeStatus")
+        {
+            await LoadHomeEntities();
+        }
     }
 
     private async Task SaveWidget(DashboardWidget widget)
@@ -1351,6 +1469,11 @@
         widget.WeatherForecastLength = NormalizeWeatherForecastLength(widget.WeatherForecastMode, widget.WeatherForecastLength);
         var countdown = widget.CountdownSettings;
         countdown.Title = countdown.Title.Trim();
+        var home = widget.HomeStatusSettings;
+        home.Title = home.Title.Trim();
+        home.AttentionEntityId = string.IsNullOrWhiteSpace(home.AttentionEntityId)
+            ? HomeStatusWidgetSettings.DefaultAttentionEntityId
+            : home.AttentionEntityId.Trim();
         widget.PositionX = Math.Clamp(widget.PositionX, 1, 12);
         widget.PositionY = Math.Clamp(widget.PositionY, 1, 12);
         widget.Width = Math.Clamp(widget.Width, 1, 13 - widget.PositionX);
