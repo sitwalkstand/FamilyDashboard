@@ -42,6 +42,7 @@ public class DashboardWidget
     /// <summary>Family Map widgets reuse the Family Locations options (members and title); battery is unused.</summary>
     public FamilyLocationsWidgetSettings FamilyMapSettings { get; set; } = new() { Title = "Family map" };
     public CountdownWidgetSettings CountdownSettings { get; set; } = new();
+    public HomeStatusWidgetSettings HomeStatusSettings { get; set; } = new();
 
     public DashboardScreen? Screen { get; set; }
 }
