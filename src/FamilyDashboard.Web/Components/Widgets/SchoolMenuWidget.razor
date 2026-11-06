@@ -21,7 +21,7 @@
             @foreach (var day in days)
             {
                 var items = VisibleItems(day);
-                <section class="school-menu-day @(day.Date == Today ? "is-today" : "")">
+                <section class="school-menu-day @(day == days[0] ? "is-today" : "")">
                     <h3>@DayLabel(day.Date)</h3>
                     <ul>
                         @foreach (var item in items)
@@ -47,7 +47,15 @@
 
     private SchoolMenuWidgetSettings Settings => Widget.SchoolMenuSettings;
 
-    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Now);
+    // Lunch is over by noon, so from then on the menu starts at the next school day.
+    private static readonly TimeOnly SwitchToNextDayAt = new(12, 0);
+
+    private static DateTime Now => TimeZoneInfo.ConvertTime(DateTime.UtcNow, DashboardTimeZone.Zone);
+
+    private static DateOnly Today => DateOnly.FromDateTime(Now);
+
+    private static DateOnly FirstDayToShow =>
+        TimeOnly.FromDateTime(Now) < SwitchToNextDayAt ? Today : Today.AddDays(1);
 
     private string Title
     {
@@ -62,7 +70,7 @@
 
     private List<SchoolMenuDay> UpcomingDays(SchoolMenuDto menu) =>
         menu.Days
-            .Where(day => day.Date >= Today)
+            .Where(day => day.Date >= FirstDayToShow)
             .Take(Math.Clamp(Settings.DaysToShow, 1, 5))
             .ToList();
 
@@ -90,8 +98,8 @@
     protected override void OnInitialized()
     {
         State.SchoolMenusChanged += OnChanged;
-        // "Today" moves at midnight even when no new menu data arrives.
-        _dayTimer = new Timer(_ => OnChanged(), null, TimeSpan.FromMinutes(10), TimeSpan.FromMinutes(10));
+        // The first day shown moves at noon and midnight even when no new menu data arrives.
+        _dayTimer = new Timer(_ => OnChanged(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
     }
 
     private void OnChanged() => InvokeAsync(StateHasChanged);
