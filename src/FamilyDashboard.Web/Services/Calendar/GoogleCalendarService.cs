@@ -110,8 +110,9 @@ public sealed class GoogleCalendarService(
 
         var api = await GetCalendarApiAsync(cancellationToken);
         var request = api.Events.List(feed.ExternalId);
-        request.TimeMinDateTimeOffset = new DateTimeOffset(DateTime.SpecifyKind(start, DateTimeKind.Local)).ToUniversalTime();
-        request.TimeMaxDateTimeOffset = new DateTimeOffset(DateTime.SpecifyKind(end, DateTimeKind.Local)).ToUniversalTime();
+        // start and end are dashboard (Eastern) wall-clock times, not the server's.
+        request.TimeMinDateTimeOffset = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(start, DateTimeKind.Unspecified), DashboardTimeZone.Zone);
+        request.TimeMaxDateTimeOffset = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(end, DateTimeKind.Unspecified), DashboardTimeZone.Zone);
         request.SingleEvents = true;
         request.OrderBy = EventsResource.ListRequest.OrderByEnum.StartTime;
         var events = await request.ExecuteAsync(cancellationToken);
@@ -133,7 +134,8 @@ public sealed class GoogleCalendarService(
                 isAllDay,
                 feed.DisplayName,
                 feed.Color,
-                feed.Icon);
+                feed.Icon,
+                feed.Id);
         }).ToList() ?? [];
     }
 

@@ -28,7 +28,7 @@
         <div class="calendar-weekdays" aria-hidden="true">
             @for (var dayIndex = 0; dayIndex < DayNames.Length; dayIndex++)
             {
-                <span class="@(dayIndex == (int)DateTime.Today.DayOfWeek ? "calendar-weekday-today" : "")">@DayNames[dayIndex]</span>
+                <span class="@(dayIndex == (int)DashboardTimeZone.Today.DayOfWeek ? "calendar-weekday-today" : "")">@DayNames[dayIndex]</span>
             }
         </div>
         <div class="calendar-grid" style="--calendar-week-count:@Weeks.Count">
@@ -69,14 +69,14 @@
 
     private static readonly string[] DayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-    private DateTime RangeStart => DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek);
+    private DateTime RangeStart => DashboardTimeZone.Today.AddDays(-(int)DashboardTimeZone.Today.DayOfWeek);
     private DateTime RangeEnd => RangeStart.AddDays(Math.Clamp(WeeksToDisplay, 1, 6) * 7 - 1);
 
     private IReadOnlyList<IReadOnlyList<CalendarDay>> Weeks
     {
         get
         {
-            var today = DateTime.Today;
+            var today = DashboardTimeZone.Today;
             var gridStart = today.AddDays(-(int)today.DayOfWeek);
             var weekCount = Math.Clamp(WeeksToDisplay, 1, 6);
 
@@ -125,7 +125,7 @@
 
     private static string DayClass(CalendarDay day)
     {
-        var today = DateTime.Today;
+        var today = DashboardTimeZone.Today;
         var classes = new List<string>();
         if (!day.IsCurrentMonth)
         {

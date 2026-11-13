@@ -78,7 +78,7 @@ public class SchoolMenuRefreshWorker(
                     continue;
                 }
 
-                var menu = await menuService.GetMenuAsync(menuTypeId, DateOnly.FromDateTime(DateTime.Now), stoppingToken);
+                var menu = await menuService.GetMenuAsync(menuTypeId, DateOnly.FromDateTime(DashboardTimeZone.Today), stoppingToken);
                 _nextFetchUtc[menuTypeId] = DateTime.UtcNow + (menu is null ? RetryInterval : RefreshInterval);
                 if (menu is not null)
                 {

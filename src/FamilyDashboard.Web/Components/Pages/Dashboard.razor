@@ -66,7 +66,9 @@ else
     {
         await LoadScreens();
         State.ScreensChanged += OnScreensChanged;
-        _screenTimer = new Timer(_ => Tick(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        // Ticks run on the renderer like admin reloads do, so a reload can't swap the screen list
+        // mid-tick and leave the index pointing past its end.
+        _screenTimer = new Timer(_ => InvokeAsync(Tick), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
     }
 
     // Admin edits push here over the existing circuit, so the kiosk picks up
@@ -109,7 +111,7 @@ else
 
         _elapsedSeconds = 0;
         _screenIndex = (_screenIndex + 1) % _screens.Count;
-        InvokeAsync(StateHasChanged);
+        StateHasChanged();
     }
 
     private static string WidgetStyle(DashboardWidget widget)

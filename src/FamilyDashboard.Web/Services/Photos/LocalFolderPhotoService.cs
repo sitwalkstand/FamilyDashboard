@@ -17,8 +17,22 @@ public class LocalFolderPhotoService(IConfiguration configuration, ILogger<Local
         var safeName = $"{Path.GetFileNameWithoutExtension(Path.GetRandomFileName())}{extension}";
         var destination = Path.Combine(photoDir, safeName);
 
-        await using var output = File.Create(destination);
-        await content.CopyToAsync(output, cancellationToken);
+        // Written under a name the scan ignores and renamed once complete, so an upload that fails
+        // partway never leaves a broken photo in the slideshow.
+        var partial = destination + ".partial";
+        try
+        {
+            await using (var output = File.Create(partial))
+            {
+                await content.CopyToAsync(output, cancellationToken);
+            }
+            File.Move(partial, destination);
+        }
+        catch
+        {
+            File.Delete(partial);
+            throw;
+        }
     }
 
     public Task<List<string>> ScanAsync(CancellationToken cancellationToken = default)
