@@ -1550,7 +1550,7 @@
     private static string AlbumStatusText(AlbumSyncStatus status)
     {
         var album = string.IsNullOrWhiteSpace(status.AlbumName) ? "Shared album" : $"\"{status.AlbumName}\"";
-        var synced = status.LastSyncedUtc is { } syncedUtc ? $", last synced {syncedUtc.ToLocalTime():MMM d h:mm tt}" : "";
+        var synced = status.LastSyncedUtc is { } syncedUtc ? $", last synced {DashboardTimeZone.ToDashboardTime(syncedUtc):MMM d h:mm tt}" : "";
         var summary = $"{album}: {status.PhotoCount} photo(s) cached{synced}.";
         return status.LastError is null ? summary : $"{summary} Last sync problem: {status.LastError}";
     }

@@ -102,7 +102,7 @@
         }
         if (slide.DateCreated is { } created)
         {
-            parts.Add(created.ToLocalTime().ToString("MMMM d, yyyy"));
+            parts.Add(DashboardTimeZone.ToDashboardTime(created).ToString("MMMM d, yyyy"));
         }
 
         return parts.Count == 0 && string.IsNullOrWhiteSpace(slide.Caption) ? null : string.Join(" · ", parts);
