@@ -10,8 +10,8 @@ services:
       # Photos export folder, a Samba share, etc. Mount it read-only if you like.
       - ${PHOTO_FOLDER:-./photos}:/photos
     environment:
-      # The clock and calendar use the server's local time; without this the
-      # container runs in UTC. Override with TZ in the host's .env if needed.
+      # The dashboard itself always shows Eastern time (DashboardTimeZone); this
+      # only sets the container's own clock, e.g. for log timestamps.
       - TZ=${TZ:-America/New_York}
       # Register http://<server-host>:8080/auth/google/callback in Google Cloud.
       # Put credentials in /data/google-oauth.json; the volume persists it.

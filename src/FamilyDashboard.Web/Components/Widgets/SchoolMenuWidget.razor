@@ -50,12 +50,10 @@
     // Lunch is over by noon, so from then on the menu starts at the next school day.
     private static readonly TimeOnly SwitchToNextDayAt = new(12, 0);
 
-    private static DateTime Now => TimeZoneInfo.ConvertTime(DateTime.UtcNow, DashboardTimeZone.Zone);
-
-    private static DateOnly Today => DateOnly.FromDateTime(Now);
+    private static DateOnly Today => DateOnly.FromDateTime(DashboardTimeZone.Today);
 
     private static DateOnly FirstDayToShow =>
-        TimeOnly.FromDateTime(Now) < SwitchToNextDayAt ? Today : Today.AddDays(1);
+        TimeOnly.FromDateTime(DashboardTimeZone.Now) < SwitchToNextDayAt ? Today : Today.AddDays(1);
 
     private string Title
     {

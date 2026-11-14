@@ -6,7 +6,7 @@
 </div>
 
 @code {
-    private DateTime _now = DateTime.Now;
+    private DateTime _now = DashboardTimeZone.Now;
     private Timer? _timer;
 
     protected override void OnInitialized()
@@ -15,7 +15,7 @@
         // itself) - it just ticks the render every second.
         _timer = new Timer(_ =>
         {
-            _now = DateTime.Now;
+            _now = DashboardTimeZone.Now;
             InvokeAsync(StateHasChanged);
         }, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
     }

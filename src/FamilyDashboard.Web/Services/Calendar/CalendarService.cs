@@ -7,6 +7,7 @@ namespace FamilyDashboard.Web.Services.Calendar;
 public class CalendarService(
     HttpClient httpClient,
     IGoogleCalendarService googleCalendarService,
+    DashboardStateService state,
     ILogger<CalendarService> logger) : ICalendarService
 {
     private const int MaxFetchAttempts = 3;
@@ -20,9 +21,11 @@ public class CalendarService(
         var results = new List<CalendarEventDto>();
         // Start at the beginning of the current week (Sunday) so the calendar widget's
         // first row also shows events from earlier this week, not just from today on.
-        var today = DateTime.Today;
+        var today = DashboardTimeZone.Today;
         var rangeStart = today.AddDays(-(int)today.DayOfWeek);
         var rangeEnd = today.AddDays(lookAheadDays);
+        // A feed that fails this time keeps the events it had, rather than vanishing until it next answers.
+        var previousEvents = state.Events;
         var googleConnectionAvailable = !feeds.Any(feed =>
             feed.Enabled && string.Equals(feed.SourceType, "Google", StringComparison.OrdinalIgnoreCase)) ||
             await googleCalendarService.IsConnectedAsync(cancellationToken);
@@ -42,6 +45,8 @@ public class CalendarService(
                     var calendar = global::Ical.Net.Calendar.Load(ics);
                     var occurrences = calendar.GetOccurrences(rangeStart, rangeEnd);
 
+                    // Collected first so a failure partway through can't mix with the kept events.
+                    var feedEvents = new List<CalendarEventDto>();
                     foreach (var occurrence in occurrences)
                     {
                         if (occurrence.Source is not CalendarEvent calEvent)
@@ -51,15 +56,17 @@ public class CalendarService(
 
                         var start = occurrence.Period.StartTime.AsDateTimeOffset;
                         var end = occurrence.Period.EndTime?.AsDateTimeOffset ?? start;
-                        results.Add(new CalendarEventDto(
+                        feedEvents.Add(new CalendarEventDto(
                             Title: calEvent.Summary ?? "(untitled event)",
                             Start: start,
                             End: end,
                             IsAllDay: calEvent.IsAllDay,
                             CalendarName: feed.DisplayName,
                             Color: feed.Color,
-                            Icon: feed.Icon));
+                            Icon: feed.Icon,
+                            FeedId: feed.Id));
                     }
+                    results.AddRange(feedEvents);
                 }
             }
             catch (Google.Apis.Auth.OAuth2.Responses.TokenResponseException ex)
@@ -81,16 +88,29 @@ public class CalendarService(
             {
                 // Keep provider throttling from producing a full exception trace for every refresh.
                 logger.LogWarning("Could not fetch calendar feed {FeedName}: {Message}", feed.DisplayName, ex.Message);
+                KeepPreviousEvents(feed);
             }
             catch (Exception ex)
             {
                 // Don't let one broken/unreachable feed take the whole widget down -
                 // log it and keep whatever the other feeds returned.
                 logger.LogWarning(ex, "Failed to fetch/parse calendar feed {FeedName}", feed.DisplayName);
+                KeepPreviousEvents(feed);
             }
         }
 
         return results.OrderBy(e => e.Start).ToList();
+
+        // Not used when Google access was revoked: those feeds are disconnected, so their events should go.
+        void KeepPreviousEvents(CalendarFeed feed)
+        {
+            var kept = previousEvents.Where(calendarEvent => calendarEvent.FeedId == feed.Id).ToList();
+            if (kept.Count > 0)
+            {
+                results.AddRange(kept);
+                logger.LogInformation("Keeping {Count} earlier events for calendar feed {FeedName}", kept.Count, feed.DisplayName);
+            }
+        }
     }
 
     private async Task<string> FetchFeedAsync(string url, string feedName, CancellationToken cancellationToken)

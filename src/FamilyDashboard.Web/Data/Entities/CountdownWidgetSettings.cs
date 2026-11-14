@@ -1,3 +1,5 @@
+using FamilyDashboard.Web.Services;
+
 namespace FamilyDashboard.Web.Data.Entities;
 
 /// <summary>
@@ -9,5 +11,5 @@ public class CountdownWidgetSettings
 {
     public string Title { get; set; } = "Countdown";
     /// <summary>When the countdown reaches zero, as a wall-clock time in the dashboard's time zone (Eastern).</summary>
-    public DateTime EndsAt { get; set; } = DateTime.Today.AddDays(7);
+    public DateTime EndsAt { get; set; } = DashboardTimeZone.Today.AddDays(7);
 }
