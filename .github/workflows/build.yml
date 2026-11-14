@@ -1,0 +1,28 @@
+name: Build
+
+# Catches a broken build on the pull request, before it reaches main and the deploy.
+# Runs on GitHub's hosted runners rather than the self-hosted one, which holds the deploy key.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build src/FamilyDashboard.Web/FamilyDashboard.Web.csproj -c Release
