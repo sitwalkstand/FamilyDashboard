@@ -22,6 +22,7 @@
 @inject ISchoolMenuService SchoolMenuService
 @inject IFamilyLocationService FamilyLocationService
 @inject IHomeStatusService HomeStatusService
+@inject ILogger<Admin> Logger
 @implements IAsyncDisposable
 
 <div class="admin-page">
@@ -296,7 +297,11 @@
     else
     {
         <p class="hint">Connected account: @_googleConnectedEmail</p>
-        @if (_googleCalendars.Count == 0)
+        @if (_googleCalendarError is not null)
+        {
+            <p class="modal-note">Google Calendar could not be loaded: @_googleCalendarError</p>
+        }
+        else if (_googleCalendars.Count == 0)
         {
             <p class="modal-note">No calendars were returned by Google.</p>
         }
@@ -782,6 +787,7 @@
     private bool _showModalFeedForm;
     private CalendarFeed _modalFeed = new();
     private List<GoogleCalendarInfo> _googleCalendars = [];
+    private string? _googleCalendarError;
     private string? _googleConnectedEmail;
     private int? _editingGoogleCalendarFeedId;
     private string _googleCalendarNameDraft = string.Empty;
@@ -1629,6 +1635,7 @@
         _googleConnectedEmail = await db.GoogleCalendarConnections
             .Select(connection => connection.Email)
             .SingleOrDefaultAsync();
+        _googleCalendarError = null;
         if (_googleConnectedEmail is not null && GoogleCalendarService.IsConfigured)
         {
             try
@@ -1647,9 +1654,14 @@
                 _googleConnectedEmail = null;
                 _googleCalendars = [];
             }
-            catch (Exception exception) when (exception is InvalidOperationException or HttpRequestException)
+            catch (Exception exception) when (exception is InvalidOperationException or HttpRequestException
+                                                   or Google.GoogleApiException or Google.Apis.Auth.OAuth2.Responses.TokenResponseException
+                                                   or TaskCanceledException)
             {
-                _photoUploadMessage = $"Google Calendar could not be loaded: {exception.Message}";
+                // Shown on the Google card itself, so it isn't mistaken for an account with no calendars.
+                Logger.LogWarning(exception, "Could not list Google calendars");
+                _googleCalendars = [];
+                _googleCalendarError = exception.Message;
             }
         }
     }
