@@ -283,6 +283,11 @@
             <span class="feed-count">Connected</span>
         }
     </div>
+    @* Shown whether or not an older connection is still saved, since a failed reconnect leaves it in place. *@
+    @if (!string.IsNullOrWhiteSpace(GoogleError))
+    {
+        <p class="modal-note">Google Calendar could not be connected: @GoogleError</p>
+    }
     @if (!GoogleCalendarService.IsConfigured)
     {
         <div class="feed-empty">Google Calendar is not configured. Create <strong>App_Data/google-oauth.json</strong> with your Google client credentials, then restart.</div>
@@ -869,6 +874,10 @@
 
     [SupplyParameterFromQuery(Name = "google")]
     private string? GoogleStatus { get; set; }
+
+    // Set by the OAuth callback when connecting fails.
+    [SupplyParameterFromQuery(Name = "googleError")]
+    private string? GoogleError { get; set; }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

@@ -407,6 +407,7 @@ app.MapGet("/auth/google/start", (HttpContext context, IGoogleCalendarService go
 app.MapGet("/auth/google/callback", async (
     HttpContext context,
     IGoogleCalendarService googleCalendar,
+    ILogger<Program> logger,
     string? code,
     string? state,
     CancellationToken cancellationToken) =>
@@ -423,8 +424,11 @@ app.MapGet("/auth/google/callback", async (
         await googleCalendar.CompleteAuthorizationAsync(code, redirectUri, cancellationToken);
         return Results.Redirect("/admin?google=connected");
     }
-    catch (Exception exception) when (exception is InvalidOperationException or Google.GoogleApiException)
+    // Anything that goes wrong here (Google unreachable, a rejected code, a tampered state) goes back
+    // to admin with the reason rather than to the generic error page.
+    catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
     {
+        logger.LogWarning(exception, "Google Calendar authorization failed");
         return Results.Redirect($"/admin?googleError={Uri.EscapeDataString(exception.Message)}");
     }
 });
